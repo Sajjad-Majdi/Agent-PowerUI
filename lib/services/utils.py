@@ -4,6 +4,7 @@ import json
 from transformers import AutoProcessor
 import base64
 import mimetypes
+import requests
 
 
 def ollama_run(model_id=None):
@@ -120,7 +121,3 @@ def supports_image(model_id: str) -> bool:
     except Exception as e:
         print(f"Error: {e}")
         return False
-
-
-if __name__ == "__main__":
-    ollama_run("gemma3:4b-it-qat")

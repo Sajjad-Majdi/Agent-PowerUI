@@ -81,6 +81,7 @@ class _CodeBlockState extends State<CodeBlock> {
                         style: GoogleFonts.nunito(
                           color: headerColor,
                           fontWeight: FontWeight.bold,
+                          fontSize: 16,
                         ),
                       ),
                     ),

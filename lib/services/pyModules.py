@@ -1,8 +1,4 @@
-from typing import Any, Dict, List, Optional
-import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer
-from transformers import BitsAndBytesConfig
-from utils import supports_image, load_history, add_message, get_base64_data, list_models
+from utils import get_base64_data, list_models
 from smolagents import OpenAIServerModel
 import ollama
 
@@ -240,4 +236,6 @@ class OllamaHandler:
 
 
 if __name__ == "__main__":
-    list_models()
+    model = OllamaHandler('gemma3n:e4b')
+    for chunk in model.text_chat("hi there"):
+        print(chunk, flush=True, end="")

@@ -1,5 +1,3 @@
-// lib/screens/chat_interface.dart
-
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
@@ -7,6 +5,7 @@ import '/components/app_bar.dart';
 import '/components/input_bar.dart';
 import '/components/massage_bubble.dart';
 import '/services/gemini.dart';
+import '../services/modules.dart';
 
 final sample1 = r'''
 # 🥳 Welcome to the **Ultimate Markdown Cheat Sheet**!
@@ -68,9 +67,7 @@ class _ChatInterfaceState extends State<ChatInterface> {
   final TextEditingController controller = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   final gemini = GeminiService();
-  final List<ChatMessage> messages = [
-    ChatMessage(text: sample1, isMe: false),
-  ];
+  final List<ChatMessage> messages = [];
 
   @override
   void initState() {
@@ -108,7 +105,8 @@ class _ChatInterfaceState extends State<ChatInterface> {
     // Scroll to bottom after adding messages
     SchedulerBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
 
-    final response = await gemini.chat(prompt);
+    final response = await sendPrompt(prompt);
+    // final response = await gemini.chat(prompt);
 
     setState(() {
       final idx = messages.lastIndexWhere((m) => m.isLoading);

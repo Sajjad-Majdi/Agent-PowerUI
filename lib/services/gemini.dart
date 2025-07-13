@@ -9,7 +9,6 @@ class GeminiService {
 
   List<Content> history = [];
 
-  /// Returns a List of maps, each with `role` and `content` keys:
   List<Map<String, String?>> getHistory() {
     return history.map((entry) {
       final text =
@@ -33,10 +32,3 @@ class GeminiService {
     }
   }
 }
-
-// void main() async {
-//   final gemini = GeminiService();
-//   // final response = await gemini.chat('Hello, how are you?');
-//   // print(response);
-//   print(gemini.getHistory());
-// }
