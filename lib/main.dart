@@ -1,15 +1,14 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:test_flutter/pages/chat_interface.dart';
 import 'package:window_manager/window_manager.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 
-// import 'pages/animation.dart';
+import '/blocs/chat/chat_bloc.dart';
+import '/pages/chat_interface.dart';
 
 void main() async {
   // Ensure flutter bindings are initialized before doing anything else.
   WidgetsFlutterBinding.ensureInitialized();
-  await GoogleFonts.pendingFonts();
 
   if (Platform.isWindows) {
     // Initialize the window manager.
@@ -81,7 +80,12 @@ class MainApp extends StatelessWidget {
         ),
         cardTheme: CardThemeData(color: const Color.fromARGB(255, 30, 50, 71)),
       ),
-      home: ChatInterface(),
+      home: MultiBlocProvider(
+        providers: [
+          BlocProvider(create: (context) => ChatBloc()),
+        ],
+        child: ChatInterface(),
+      ),
     );
   }
 }

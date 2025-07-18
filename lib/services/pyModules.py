@@ -24,7 +24,6 @@ $y(x) = x^2 + C$
 
 '''
 
-
 class GeminiHandler:
     def __init__(self, model_name=None, api_key=None):
         self.GEMINI_MODEL = model_name

@@ -1,19 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-// فرض می‌شود این فایل شامل تابع isRTL است
-// import 'subunits/utilities.dart';
-import 'package:google_fonts/google_fonts.dart';
+import '/components/subunits/utilities.dart';
 
-// یک پیاده‌سازی ساده از isRTL برای اینکه کد قابل اجرا باشد
-// کاربر باید پیاده‌سازی واقعی خود را جایگزین کند
-bool isRTL(String text) {
-  if (text.isEmpty) return false;
-  final firstChar = text.runes.first;
-  // محدوده‌ی مثال برای حروف عربی و فارسی
-  return (firstChar >= 0x0600 && firstChar <= 0x06FF);
-}
-
-/// یک InputBar ساده که یک controller و یک callback به نام onSend می‌گیرد.
 class InputBar extends StatefulWidget {
   final TextEditingController controller;
   final VoidCallback onSend;
@@ -129,17 +117,13 @@ class _InputBarState extends State<InputBar> with TickerProviderStateMixin {
                     onChanged: (_) => setState(() {}),
                     maxLines: _maxLines,
                     minLines: 1,
-                    // تغییر اکشن کیبورد مجازی به "رفتن به خط بعد" برای هماهنگی
                     textInputAction: TextInputAction.newline,
-                    // onSubmitted دیگر نیازی نیست چون Enter به خط بعد می‌رود
                     onSubmitted: null,
                     style: theme.textTheme.bodyLarge?.copyWith(
                       color: theme.colorScheme.onSurface,
                       height: 1.4,
-                      fontFamily: _isTextRTL
-                          ? 'Vazir'
-                          : GoogleFonts.nunito().fontFamily,
-                      fontWeight: FontWeight.w600,
+                      fontFamily: _isTextRTL ? 'Vazir' : 'Nunito',
+                      fontWeight: FontWeight.w700,
                     ),
                     decoration: InputDecoration(
                       hintText: 'Type a message...',
@@ -165,7 +149,6 @@ class _InputBarState extends State<InputBar> with TickerProviderStateMixin {
                   onEnter: (_) => setState(() => _isHovering = true),
                   onExit: (_) => setState(() => _isHovering = false),
                   child: GestureDetector(
-                    // همچنین دکمه ارسال با کلیک هم کار می‌کند
                     onTap: widget.onSend,
                     child: Container(
                       margin: EdgeInsets.only(

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:gpt_markdown/gpt_markdown.dart';
 import 'package:gpt_markdown/custom_widgets/selectable_adapter.dart';
 
@@ -33,20 +32,18 @@ class _MessageBubbleState extends State<MessageBubble> {
     final theme = Theme.of(context);
     final isRtl = isRTL(widget.message);
 
-    final textStyle = TextStyle(
-      color: theme.textTheme.bodyMedium?.color,
-      fontFamily: isRtl ? 'Vasir-Reg' : GoogleFonts.nunito().fontFamily,
-      fontWeight: FontWeight.w300,
-      fontSize: 16,
-    );
-
     final gptMarkdown = SelectionArea(
       child: GptMarkdown(
         widget.message,
 
         followLinkColor: true,
         useDollarSignsForLatex: true,
-        style: textStyle,
+        style: TextStyle(
+          color: theme.textTheme.bodyMedium?.color,
+          fontFamily: isRtl ? 'Vazir' : 'Nunito',
+          fontWeight: FontWeight.w600,
+          fontSize: 16,
+        ),
         textDirection: isRtl ? TextDirection.rtl : TextDirection.ltr,
         onLinkTap: (url, title) async {
           final uri = Uri.parse(url);
@@ -65,7 +62,7 @@ class _MessageBubbleState extends State<MessageBubble> {
               borderRadius: BorderRadius.circular(10),
             ),
             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-            child: Text(text, style: textStyle.copyWith(fontSize: 14)),
+            child: Text(text, style: style.copyWith(fontSize: 14)),
           );
         },
 

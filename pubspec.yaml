@@ -12,7 +12,6 @@ dependencies:
   
   flutter_highlight: ^0.7.0
   highlight: ^0.7.0
-  google_fonts: ^6.2.1
   url_launcher: ^6.3.0
   intl: ^0.19.0
   window_manager: ^0.5.0
@@ -20,6 +19,7 @@ dependencies:
   flutter_math_fork: ^0.7.4
   gpt_markdown: ^1.1.2
   flutter_bloc: ^9.1.1
+  bloc: ^9.0.0
   
 
 
@@ -34,10 +34,16 @@ flutter:
     - assets/fonts/
     - assets/textures/
   fonts:
+  
     - family: Vazir
       fonts:
-        - asset: assets/fonts/Vazir.ttf
-    - family: Vasir-Reg
-      fonts:
         - asset: assets/fonts/Vazirmatn-Regular.ttf
+
+    - family: Nunito
+      fonts:
+        - asset: assets/fonts/Nunito.ttf
+        
+    - family: FiraCode
+      fonts:
+        - asset: assets/fonts/FiraCode.ttf
       

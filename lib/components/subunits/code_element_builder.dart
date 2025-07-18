@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:highlight/highlight.dart' as hl;
 import 'package:flutter_highlight/themes/atom-one-dark.dart';
+import 'package:flutter/services.dart';
 
 class CodeBlock extends StatefulWidget {
   const CodeBlock({
@@ -19,44 +18,48 @@ class CodeBlock extends StatefulWidget {
 }
 
 class _CodeBlockState extends State<CodeBlock> {
-  bool _isCopied = false;
   bool _isCollapsed = false;
+  bool _isCopied = false;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final codeBackground = theme.colorScheme.surface;
     final headerColor = Colors.grey[300];
     final headerBackgroundColor = theme.colorScheme.onSurface.withAlpha(50);
-    final textColor = theme.textTheme.bodyMedium!.color;
-    final codeBackground = theme.colorScheme.surface;
-
-// ------------------------------- Highlight View ------------------------------------
-
-    Map<String, TextStyle> _createThemeAwareColors(ThemeData theme) {
-      return {
-        for (final entry in atomOneDarkTheme.entries) entry.key: entry.value,
-      };
-    }
-
-    final dynamicTheme = _createThemeAwareColors(theme);
-
-    final parseResult = hl.highlight.parse(
-      widget.text,
-      language: widget.language,
-      autoDetection: true,
+    final headerTextStyle = TextStyle(
+      fontFamily: 'Nunito',
+      color: headerColor,
+      fontWeight: FontWeight.bold,
+      fontSize: 15,
     );
 
-    List<InlineSpan> _convertNodes(List<hl.Node>? nodes) {
-      if (nodes == null) return [];
-      return nodes.map<InlineSpan>((n) {
-        return TextSpan(
-          style: dynamicTheme[n.className],
-          text: n.value,
-          children: _convertNodes(n.children),
-        );
-      }).toList();
+    // ------------------------------- Highlight View ------------------------------------
+    List<InlineSpan> _buildHighlightedSpans(String text, String language) {
+      final dynamicTheme = {
+        for (final entry in atomOneDarkTheme.entries) entry.key: entry.value,
+      };
+
+      List<InlineSpan> _convertNodes(List<hl.Node>? nodes) {
+        if (nodes == null) return [];
+        return nodes.map<InlineSpan>((n) {
+          return TextSpan(
+            style: dynamicTheme[n.className],
+            text: n.value,
+            children: _convertNodes(n.children),
+          );
+        }).toList();
+      }
+
+      final parseResult = hl.highlight.parse(
+        text,
+        language: language,
+        autoDetection: true,
+      );
+
+      return _convertNodes(parseResult.nodes);
     }
-// ------------------------------- End Highlight View ------------------------------------
+    // ------------------------------- End Highlight View ------------------------------------
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8.0),
@@ -78,15 +81,12 @@ class _CodeBlockState extends State<CodeBlock> {
                       padding: const EdgeInsets.only(left: 10),
                       child: Text(
                         widget.language,
-                        style: GoogleFonts.nunito(
-                          color: headerColor,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                        ),
+                        style: headerTextStyle,
                       ),
                     ),
                     Row(
                       children: [
+                        // ------------------------------- Collapse Button ------------------------------------
                         TextButton.icon(
                           style: TextButton.styleFrom(
                             shape: RoundedRectangleBorder(
@@ -96,7 +96,9 @@ class _CodeBlockState extends State<CodeBlock> {
                             padding: EdgeInsets.only(left: 5, right: 10),
                           ),
                           onPressed: () {
-                            setState(() => _isCollapsed = !_isCollapsed);
+                            setState(() {
+                              _isCollapsed = !_isCollapsed;
+                            });
                           },
                           icon: Icon(
                             _isCollapsed
@@ -106,11 +108,11 @@ class _CodeBlockState extends State<CodeBlock> {
                           ),
                           label: Text(
                             _isCollapsed ? 'Expand' : 'Collapse',
-                            style: GoogleFonts.nunito(
-                                color: headerColor,
-                                fontWeight: FontWeight.bold),
+                            style: headerTextStyle,
                           ),
                         ),
+
+                        // ------------------------------- Copy Button ------------------------------------
                         TextButton.icon(
                           style: TextButton.styleFrom(
                             shape: RoundedRectangleBorder(
@@ -122,10 +124,14 @@ class _CodeBlockState extends State<CodeBlock> {
                           onPressed: () async {
                             await Clipboard.setData(
                                 ClipboardData(text: widget.text));
-                            if (!mounted) return;
-                            setState(() => _isCopied = true);
-                            await Future.delayed(const Duration(seconds: 2));
-                            if (mounted) setState(() => _isCopied = false);
+                            setState(() {
+                              _isCopied = true;
+                            });
+                            Future.delayed(const Duration(seconds: 1), () {
+                              setState(() {
+                                _isCopied = false;
+                              });
+                            });
                           },
                           icon: Icon(
                             _isCopied
@@ -136,9 +142,7 @@ class _CodeBlockState extends State<CodeBlock> {
                           ),
                           label: Text(
                             _isCopied ? 'Copied!' : 'Copy',
-                            style: GoogleFonts.nunito(
-                                color: headerColor,
-                                fontWeight: FontWeight.bold),
+                            style: headerTextStyle,
                           ),
                         ),
                       ],
@@ -169,9 +173,12 @@ class _CodeBlockState extends State<CodeBlock> {
                     padding: const EdgeInsets.all(16.0),
                     child: SelectableText.rich(
                       TextSpan(
-                        style: GoogleFonts.firaCode(
-                            color: textColor, fontSize: 14),
-                        children: _convertNodes(parseResult.nodes),
+                        style: TextStyle(
+                            fontFamily: 'FiraCode',
+                            fontSize: 15,
+                            fontWeight: FontWeight.w500),
+                        children: _buildHighlightedSpans(
+                            widget.text, widget.language),
                       ),
                     ),
                   ),
@@ -204,7 +211,7 @@ class CodeInline extends StatelessWidget {
           style: TextStyle(
             backgroundColor:
                 Theme.of(context).colorScheme.onSurface.withAlpha(25),
-            fontFamily: 'monospace',
+            fontFamily: 'FiraCode',
             fontSize: 16,
           ),
         ),
