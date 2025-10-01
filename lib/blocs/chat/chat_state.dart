@@ -50,7 +50,7 @@ abstract class ChatState {
 }
 
 class ChatInitial extends ChatState {
-  ChatInitial() : super([ChatMessage(text: sample1, isMe: false)]);
+  ChatInitial() : super([]);
 }
 
 class ChatLoading extends ChatState {

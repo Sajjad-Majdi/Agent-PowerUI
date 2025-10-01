@@ -1,0 +1,31 @@
+{
+    "User Information": [
+        {
+            "id": 1,
+            "fact": "User's name is Sajjad",
+            "timestamp": "2025-09-24T03:42:32.653219"
+        },
+        {
+            "id": 2,
+            "fact": "Sajjad lives in Iran",
+            "timestamp": "2025-09-23T23:33:09.191832"
+        },
+        {
+            "id": 3,
+            "fact": "Sajjad's job is programming",
+            "timestamp": "2025-09-23T23:33:29.629551"
+        },
+        {
+            "id": 4,
+            "fact": "User lives in Mashhad",
+            "timestamp": "2025-09-24T03:35:14.778126"
+        }
+    ],
+    "User Preferences": [
+        {
+            "id": 1,
+            "fact": "User prefers short, concise answers. Never be talkative.",
+            "timestamp": "2025-09-23T23:34:17.435224"
+        }
+    ]
+}

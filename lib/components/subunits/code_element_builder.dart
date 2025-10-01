@@ -24,7 +24,7 @@ class _CodeBlockState extends State<CodeBlock> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final codeBackground = theme.colorScheme.surface;
+    final codeBackground = Color(0xFF1B263B);
     final headerColor = Colors.grey[300];
     final headerBackgroundColor = theme.colorScheme.onSurface.withAlpha(50);
     final headerTextStyle = TextStyle(

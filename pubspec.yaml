@@ -20,6 +20,11 @@ dependencies:
   gpt_markdown: ^1.1.2
   flutter_bloc: ^9.1.1
   bloc: ^9.0.0
+  iconsax: ^0.0.8
+  langgraph: ^0.0.1-dev.2
+  langchain: ^0.7.9
+  langchain_google: ^0.6.5+2
+  http: ^1.2.0
   
 
 

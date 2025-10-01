@@ -33,50 +33,26 @@ class MainApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      themeMode: ThemeMode.dark,
-      theme: ThemeData(
-        useMaterial3: true,
-        colorScheme: ColorScheme.fromSeed(
-          // light palette
-          seedColor: const Color(0xFF7A5CF3),
-          brightness: Brightness.light,
-        ),
-        textTheme: const TextTheme(
-          bodyMedium: TextStyle(color: Colors.black87),
-        ),
-      ),
 
       // ------------ Dark Theme ------------
-      darkTheme: ThemeData.dark(useMaterial3: true).copyWith(
-        scaffoldBackgroundColor: const Color(0xFF0D1B2A),
+      theme: ThemeData(
+        useMaterial3: true,
+        scaffoldBackgroundColor: const Color.fromARGB(255, 15, 30, 46),
         colorScheme: ColorScheme.fromSeed(
           seedColor: const Color(0xFF3A86FF),
           brightness: Brightness.dark,
           surface: const Color(0xFF1B263B),
-        ),
-        appBarTheme: const AppBarTheme(
-          backgroundColor: Color(0xFF1B263B),
-          foregroundColor: Colors.white,
-          elevation: 4,
-          shadowColor: Colors.black,
         ),
         textTheme: TextTheme(
           bodyMedium: TextStyle(
             color: Colors.white.withAlpha(230),
             height: 1.5,
           ),
-        ).apply(
-          bodyColor: Colors.white.withAlpha(230),
-          displayColor: Colors.white.withAlpha(230),
         ),
         inputDecorationTheme: InputDecorationTheme(
           filled: true,
           fillColor: const Color(0xFF1B263B),
           hintStyle: TextStyle(color: Colors.white.withAlpha(150)),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(24.0),
-            borderSide: BorderSide.none,
-          ),
         ),
         cardTheme: CardThemeData(color: const Color.fromARGB(255, 30, 50, 71)),
       ),

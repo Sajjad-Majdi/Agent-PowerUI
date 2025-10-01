@@ -6,11 +6,8 @@ class InputBar extends StatefulWidget {
   final TextEditingController controller;
   final VoidCallback onSend;
 
-  const InputBar({
-    Key? key,
-    required this.controller,
-    required this.onSend,
-  }) : super(key: key);
+  const InputBar({Key? key, required this.controller, required this.onSend})
+    : super(key: key);
 
   @override
   State<InputBar> createState() => _InputBarState();
@@ -42,7 +39,8 @@ class _InputBarState extends State<InputBar> with TickerProviderStateMixin {
     final bool _isTextRTL = isRTL(widget.controller.text);
     final bool _hasText = widget.controller.text.trim().isNotEmpty;
 
-    final containerColor = inputDecorationTheme.fillColor ??
+    final containerColor =
+        inputDecorationTheme.fillColor ??
         (isDarkMode ? theme.colorScheme.surfaceContainerHigh : Colors.white);
     final shadowColor = theme.colorScheme.shadow;
 
@@ -51,8 +49,10 @@ class _InputBarState extends State<InputBar> with TickerProviderStateMixin {
         final textStyle = theme.textTheme.bodyLarge?.copyWith(
           color: theme.colorScheme.onSurface,
         );
-        final textSpan =
-            TextSpan(text: widget.controller.text, style: textStyle);
+        final textSpan = TextSpan(
+          text: widget.controller.text,
+          style: textStyle,
+        );
         final tp = TextPainter(
           text: textSpan,
           maxLines: _maxLines,
@@ -68,9 +68,7 @@ class _InputBarState extends State<InputBar> with TickerProviderStateMixin {
             borderRadius: BorderRadius.circular(28.0),
             boxShadow: [
               BoxShadow(
-                color: shadowColor.withAlpha(
-                  isDarkMode ? 128 : 51,
-                ),
+                color: shadowColor.withAlpha(isDarkMode ? 128 : 51),
                 offset: const Offset(0, 6),
                 blurRadius: 16,
                 spreadRadius: 0,
@@ -84,8 +82,9 @@ class _InputBarState extends State<InputBar> with TickerProviderStateMixin {
             ),
           ),
           child: Row(
-            crossAxisAlignment:
-                isExpanded ? CrossAxisAlignment.end : CrossAxisAlignment.center,
+            crossAxisAlignment: isExpanded
+                ? CrossAxisAlignment.end
+                : CrossAxisAlignment.center,
             children: [
               IconButton(
                 onPressed: () {},
@@ -111,8 +110,9 @@ class _InputBarState extends State<InputBar> with TickerProviderStateMixin {
                   },
                   child: TextField(
                     controller: widget.controller,
-                    textDirection:
-                        _isTextRTL ? TextDirection.rtl : TextDirection.ltr,
+                    textDirection: _isTextRTL
+                        ? TextDirection.rtl
+                        : TextDirection.ltr,
                     textAlign: _isTextRTL ? TextAlign.right : TextAlign.left,
                     onChanged: (_) => setState(() {}),
                     maxLines: _maxLines,
@@ -135,8 +135,9 @@ class _InputBarState extends State<InputBar> with TickerProviderStateMixin {
                       ),
                       filled: false,
                     ),
-                    keyboardAppearance:
-                        isDarkMode ? Brightness.dark : Brightness.light,
+                    keyboardAppearance: isDarkMode
+                        ? Brightness.dark
+                        : Brightness.light,
                   ),
                 ),
               ),

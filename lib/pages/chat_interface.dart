@@ -20,7 +20,6 @@ class ChatInterface extends StatefulWidget {
 class _ChatInterfaceState extends State<ChatInterface> {
   final TextEditingController controller = TextEditingController();
   final ScrollController _scrollController = ScrollController();
-  // final gemini = GeminiService();
 
   @override
   void initState() {

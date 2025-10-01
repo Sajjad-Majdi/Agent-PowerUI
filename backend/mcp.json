@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "web_browser": {
+      "command": "npx",
+      "args": ["@playwright/mcp@latest"],
+      "transport": "stdio"
+    }
+  }
+}
