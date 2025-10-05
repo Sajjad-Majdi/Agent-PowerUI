@@ -1,13 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:iconsax/iconsax.dart';
 import '/components/subunits/utilities.dart';
+import '/components/subunits/tools_menu.dart';
+import '/services/api_service.dart';
 
 class InputBar extends StatefulWidget {
   final TextEditingController controller;
   final VoidCallback onSend;
 
   const InputBar({Key? key, required this.controller, required this.onSend})
-    : super(key: key);
+      : super(key: key);
 
   @override
   State<InputBar> createState() => _InputBarState();
@@ -17,12 +20,74 @@ class _InputBarState extends State<InputBar> with TickerProviderStateMixin {
   final FocusNode _focusNode = FocusNode();
   final int _maxLines = 6;
   bool _isHovering = false;
+  List<Map<String, dynamic>> _tools = [];
+  bool _toolsLoading = false;
 
   @override
   void initState() {
     super.initState();
     _focusNode.addListener(() => setState(() {}));
     widget.controller.addListener(() => setState(() {}));
+    _loadTools();
+  }
+
+  Future<void> _loadTools() async {
+    if (_toolsLoading) return;
+    setState(() => _toolsLoading = true);
+
+    const int maxAttempts = 8;
+    Duration delay = const Duration(milliseconds: 250);
+
+    for (int attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        final tools = await ApiService.getTools();
+        setState(() => _tools = tools);
+        break;
+      } catch (e) {
+        // If last attempt, just log and exit loop
+        if (attempt == maxAttempts) {
+          print('Error loading tools (final): $e');
+          break;
+        }
+        // Exponential backoff
+        await Future.delayed(delay);
+        delay *= 2;
+      }
+    }
+
+    setState(() => _toolsLoading = false);
+  }
+
+  void _showToolsMenu(BuildContext context) {
+    if (_tools.isEmpty && !_toolsLoading) {
+      // Lazy refresh right before showing the menu
+      _loadTools();
+    }
+    final RenderBox button = context.findRenderObject() as RenderBox;
+    final RenderBox overlay =
+        Navigator.of(context).overlay!.context.findRenderObject() as RenderBox;
+    final Offset position =
+        button.localToGlobal(Offset.zero, ancestor: overlay);
+
+    showDialog(
+      context: context,
+      barrierColor: Colors.black.withAlpha(102),
+      builder: (context) => Stack(
+        children: [
+          Positioned(
+            left: position.dx,
+            bottom: overlay.size.height - position.dy + 8,
+            child: Material(
+              color: Colors.transparent,
+              child: ToolsMenu(
+                tools: _tools,
+                isLoading: _toolsLoading,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -39,8 +104,7 @@ class _InputBarState extends State<InputBar> with TickerProviderStateMixin {
     final bool _isTextRTL = isRTL(widget.controller.text);
     final bool _hasText = widget.controller.text.trim().isNotEmpty;
 
-    final containerColor =
-        inputDecorationTheme.fillColor ??
+    final containerColor = inputDecorationTheme.fillColor ??
         (isDarkMode ? theme.colorScheme.surfaceContainerHigh : Colors.white);
     final shadowColor = theme.colorScheme.shadow;
 
@@ -82,16 +146,18 @@ class _InputBarState extends State<InputBar> with TickerProviderStateMixin {
             ),
           ),
           child: Row(
-            crossAxisAlignment: isExpanded
-                ? CrossAxisAlignment.end
-                : CrossAxisAlignment.center,
+            crossAxisAlignment:
+                isExpanded ? CrossAxisAlignment.end : CrossAxisAlignment.center,
             children: [
-              IconButton(
-                onPressed: () {},
-                icon: Icon(
-                  Icons.attach_file_rounded,
-                  color: theme.colorScheme.onSurfaceVariant,
-                  size: 22,
+              Builder(
+                builder: (context) => IconButton(
+                  onPressed: () => _showToolsMenu(context),
+                  tooltip: 'Tools Box',
+                  icon: Icon(
+                    Iconsax.setting_4,
+                    color: theme.colorScheme.onSurfaceVariant,
+                    size: 22,
+                  ),
                 ),
               ),
               Expanded(
@@ -110,9 +176,8 @@ class _InputBarState extends State<InputBar> with TickerProviderStateMixin {
                   },
                   child: TextField(
                     controller: widget.controller,
-                    textDirection: _isTextRTL
-                        ? TextDirection.rtl
-                        : TextDirection.ltr,
+                    textDirection:
+                        _isTextRTL ? TextDirection.rtl : TextDirection.ltr,
                     textAlign: _isTextRTL ? TextAlign.right : TextAlign.left,
                     onChanged: (_) => setState(() {}),
                     maxLines: _maxLines,
@@ -135,9 +200,8 @@ class _InputBarState extends State<InputBar> with TickerProviderStateMixin {
                       ),
                       filled: false,
                     ),
-                    keyboardAppearance: isDarkMode
-                        ? Brightness.dark
-                        : Brightness.light,
+                    keyboardAppearance:
+                        isDarkMode ? Brightness.dark : Brightness.light,
                   ),
                 ),
               ),

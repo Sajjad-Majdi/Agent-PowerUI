@@ -4,8 +4,24 @@ import 'dart:ui';
 class StylishAppBar extends StatelessWidget {
   final title;
   final subtitle;
+  final Widget?
+      subtitleWidget; // optional custom subtitle content (e.g., dropdown)
+  final List<String>? geminiModels;
+  final String? activeModel;
+  final ValueChanged<String>? onSelectModel;
+  final Widget? leading;
+  final List<Widget>? actions;
 
-  const StylishAppBar({super.key, required this.title, required this.subtitle});
+  const StylishAppBar(
+      {super.key,
+      required this.title,
+      required this.subtitle,
+      this.subtitleWidget,
+      this.geminiModels,
+      this.activeModel,
+      this.onSelectModel,
+      this.leading,
+      this.actions});
 
   @override
   Widget build(BuildContext context) {
@@ -22,7 +38,10 @@ class StylishAppBar extends StatelessWidget {
           scrolledUnderElevation: 0,
           surfaceTintColor: Colors.transparent,
           shadowColor: Colors.transparent,
-          toolbarHeight: 80,
+          toolbarHeight: 90,
+          leading: leading,
+          automaticallyImplyLeading: false,
+          actions: actions,
           flexibleSpace: Container(
             decoration: BoxDecoration(
               gradient: LinearGradient(
@@ -73,49 +92,7 @@ class StylishAppBar extends StatelessWidget {
           ),
           title: Row(
             children: [
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      Colors.white.withValues(alpha: 0.25),
-                      Colors.white.withValues(alpha: 0.1),
-                    ],
-                  ),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.3),
-                    width: 1,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.1),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: Icon(
-                  Icons.auto_awesome,
-                  size: 28,
-                  color: Colors.white,
-                  shadows: [
-                    Shadow(
-                      color: Color(0xFF415A77).withValues(alpha: 0.9),
-                      offset: const Offset(0, 0),
-                      blurRadius: 10,
-                    ),
-                    const Shadow(
-                      color: Colors.black54,
-                      offset: Offset(1, 1),
-                      blurRadius: 3,
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 16),
+              const SizedBox(width: 46),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -142,7 +119,7 @@ class StylishAppBar extends StatelessWidget {
                         ],
                       ),
                     ),
-                    const SizedBox(height: 2),
+                    const SizedBox(height: 8),
                     Container(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 8,
@@ -161,22 +138,7 @@ class StylishAppBar extends StatelessWidget {
                           width: 0.5,
                         ),
                       ),
-                      child: Text(
-                        this.subtitle,
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w500,
-                          color: Colors.white.withValues(alpha: 0.9),
-                          letterSpacing: 0.3,
-                          shadows: [
-                            Shadow(
-                              color: Colors.black.withValues(alpha: 0.5),
-                              offset: const Offset(1, 1),
-                              blurRadius: 2,
-                            ),
-                          ],
-                        ),
-                      ),
+                      child: _buildSubtitleContent(),
                     ),
                   ],
                 ),
@@ -184,6 +146,122 @@ class StylishAppBar extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildSubtitleContent() {
+    final models = geminiModels ?? const [];
+    if (models.isNotEmpty && onSelectModel != null) {
+      return SizedBox(
+        height: 22,
+        child: Theme(
+          data: ThemeData(
+            popupMenuTheme: PopupMenuThemeData(
+              color: Colors.transparent,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
+            ),
+          ),
+          child: PopupMenuButton<String>(
+            initialValue: activeModel,
+            onSelected: onSelectModel,
+            elevation: 10,
+            offset: const Offset(-24, 28),
+            menuPadding: EdgeInsets.zero,
+            constraints: const BoxConstraints(maxWidth: 200),
+            itemBuilder: (context) {
+              return [
+                PopupMenuItem<String>(
+                  enabled: false,
+                  padding: EdgeInsets.zero,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          Colors.white.withValues(alpha: 0.2),
+                          Colors.white.withValues(alpha: 0.1),
+                        ],
+                      ),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.3),
+                        width: 0.5,
+                      ),
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: models
+                          .map((m) => InkWell(
+                                onTap: () {
+                                  Navigator.pop(context);
+                                  onSelectModel!(m);
+                                },
+                                child: Container(
+                                  width: double.infinity,
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 16, vertical: 10),
+                                  child: Text(
+                                    m.replaceAll('-', ' '),
+                                    style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 13,
+                                        fontFamily: 'Nunito',
+                                        fontWeight: FontWeight.w600),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ))
+                          .toList(),
+                    ),
+                  ),
+                ),
+              ];
+            },
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  activeModel?.replaceAll('-', ' ') ?? subtitle,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    fontFamily: 'Nunito',
+                    color: Colors.white.withValues(alpha: 0.95),
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(width: 4),
+                Icon(
+                  Icons.arrow_drop_down_rounded,
+                  size: 16,
+                  color: Colors.white.withValues(alpha: 0.95),
+                )
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    if (subtitleWidget != null) {
+      return SizedBox(height: 22, child: subtitleWidget);
+    }
+
+    return Text(
+      this.subtitle,
+      style: TextStyle(
+        fontSize: 10,
+        fontWeight: FontWeight.w500,
+        color: Colors.white.withValues(alpha: 0.9),
+        letterSpacing: 0.3,
+        shadows: [
+          Shadow(
+            color: Colors.black.withValues(alpha: 0.5),
+            offset: const Offset(1, 1),
+            blurRadius: 2,
+          ),
+        ],
       ),
     );
   }

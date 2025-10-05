@@ -3,22 +3,27 @@ import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:gpt_markdown/gpt_markdown.dart';
 import 'package:gpt_markdown/custom_widgets/selectable_adapter.dart';
+import 'package:iconsax/iconsax.dart';
 
 import '/components/subunits/utilities.dart';
 import '/components/subunits/code_element_builder.dart';
 import '/components/subunits/math_element_builder.dart';
 import '/components/subunits/link_element_builder.dart';
+import '/components/subunits/tool_call_builder.dart';
 
 class MessageBubble extends StatefulWidget {
   final String message;
   final bool isMe;
   final bool isLoading;
+  final Map<String, dynamic>? toolCall;
 
-  const MessageBubble(
-      {super.key,
-      required this.message,
-      this.isMe = false,
-      this.isLoading = false});
+  const MessageBubble({
+    super.key,
+    required this.message,
+    this.isMe = false,
+    this.isLoading = false,
+    this.toolCall,
+  });
 
   @override
   State<MessageBubble> createState() => _MessageBubbleState();
@@ -30,6 +35,19 @@ class _MessageBubbleState extends State<MessageBubble> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+
+    // Tool call display
+    if (widget.toolCall != null) {
+      return Container(
+        alignment: Alignment.centerLeft,
+        margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 12),
+        child: ToolCallBuilder(
+          toolName: widget.toolCall!['name'] ?? 'Unknown Tool',
+          toolArgs: Map<String, dynamic>.from(widget.toolCall!['args'] ?? {}),
+        ),
+      );
+    }
+
     final isRtl = isRTL(widget.message);
 
     final gptMarkdown = SelectionArea(
@@ -199,8 +217,8 @@ class _CopyButtonState extends State<CopyButton> {
                     });
                   },
                   icon: isCopied
-                      ? const Icon(Icons.check)
-                      : const Icon(Icons.copy_rounded)),
+                      ? const Icon(Iconsax.check)
+                      : const Icon(Iconsax.copy)),
             ),
           ),
         ),

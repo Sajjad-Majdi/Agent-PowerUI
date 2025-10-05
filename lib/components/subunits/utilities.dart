@@ -17,5 +17,12 @@ class ChatMessage {
   String? text;
   final bool isMe;
   bool isLoading;
-  ChatMessage({this.text, required this.isMe, this.isLoading = false});
+  Map<String, dynamic>? toolCall;
+
+  ChatMessage({
+    this.text,
+    required this.isMe,
+    this.isLoading = false,
+    this.toolCall,
+  });
 }

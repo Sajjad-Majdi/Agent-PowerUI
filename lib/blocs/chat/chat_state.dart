@@ -46,22 +46,25 @@ The derivative of $f(x)=x^2$  is $f'(x)=2x$.
 @immutable
 abstract class ChatState {
   final List<ChatMessage> messages;
-  const ChatState(this.messages);
+  final String sessionId;
+  const ChatState(this.messages, this.sessionId);
 }
 
 class ChatInitial extends ChatState {
-  ChatInitial() : super([]);
+  ChatInitial({String? sessionId})
+      : super([],
+            sessionId ?? 'session_${DateTime.now().millisecondsSinceEpoch}');
 }
 
 class ChatLoading extends ChatState {
-  const ChatLoading(super.messages);
+  const ChatLoading(super.messages, super.sessionId);
 }
 
 class ChatLoaded extends ChatState {
-  const ChatLoaded(super.messages);
+  const ChatLoaded(super.messages, super.sessionId);
 }
 
 class ChatError extends ChatState {
   final String error;
-  const ChatError(super.messages, this.error);
+  const ChatError(super.messages, super.sessionId, this.error);
 }

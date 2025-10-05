@@ -1,109 +1,111 @@
-
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from langchain_mcp_adapters.tools import load_mcp_tools
 from langchain.chat_models import init_chat_model
 from langgraph.prebuilt import create_react_agent
 from langgraph.checkpoint.memory import MemorySaver
-
-
-# Local files
-from config import Config
-from tools import search_web, update_memory
-
-# other
+from langgraph.checkpoint.sqlite import SqliteSaver
+import sqlite3
 import asyncio
 import os
+import warnings
+from .config import Config
 os.environ['GRPC_VERBOSITY'] = 'NONE'
+warnings.filterwarnings('ignore', category=UserWarning)
+
+db_path = Config.db_path
+os.makedirs(os.path.dirname(db_path), exist_ok=True)
 
 
-class LangchainAgent:
+class OnlineAgent:
+    """Manages online LLM (Gemini) agent interactions"""
 
     def __init__(self, model: str = "gemini-2.5-flash", tools: list = []):
         self.model = model
         self.tools = tools
         self.llm = init_chat_model(model=f"google_genai:{self.model}")
+        self.agent = None
+        self.checkpointer = SqliteSaver(
+            sqlite3.connect(db_path, check_same_thread=False))
+        # MCP metadata for UI: list of loaded tools and grouping by server
+        self.mcp_tools = []
+        self.mcp_tools_by_server = {}
+
+    def initialize_agent(self):
+        """Initialize agent with basic tools"""
         self.agent = create_react_agent(
-            self.llm, self.tools, checkpointer=MemorySaver())
+            self.llm, self.tools, checkpointer=self.checkpointer)
+        return self.agent
 
-    def send_message(self, message: str, session_config: str = "default_session", cli_chat: bool = False, system_prompt: str = None):
+    async def initialize_agent_with_mcp(self, mcp_servers: dict):
+        """Initialize agent with MCP tools"""
+        if mcp_servers and len(mcp_servers) > 0:
+            try:
+                client = MultiServerMCPClient(mcp_servers)
+                server_names = list(mcp_servers.keys())
 
-        session_config = {"configurable": {"thread_id": session_config}}
+                async with client.session(server_names[0]) as session:
+                    mcp_tools = await load_mcp_tools(session)
+                    print(f"Loaded {len(mcp_tools)} MCP tools")
+                    # capture MCP tools for later listing
+                    self.mcp_tools = mcp_tools
+                    # best-effort grouping by primary server name
+                    try:
+                        tool_names = []
+                        for t in mcp_tools:
+                            # LangChain tools expose .name
+                            name = getattr(t, 'name', None) or str(t)
+                            tool_names.append(name)
+                        if server_names:
+                            self.mcp_tools_by_server[server_names[0]
+                                                     ] = tool_names
+                    except Exception:
+                        pass
+
+                    all_tools = mcp_tools + self.tools
+                    self.agent = create_react_agent(
+                        self.llm, all_tools, checkpointer=self.checkpointer)
+                    return self.agent
+            except Exception as e:
+                print(f"MCP connection failed: {e}, using basic tools only")
+
+        self.agent = create_react_agent(
+            self.llm, self.tools, checkpointer=self.checkpointer)
+        return self.agent
+
+    def set_model(self, model: str):
+        """Switch the underlying Gemini model and rebuild the agent in-place."""
+        if not model or model == self.model:
+            return self.model
+        self.model = model
+        self.llm = init_chat_model(model=f"google_genai:{self.model}")
+        # Prefer MCP tools if already loaded
+        tools = (self.mcp_tools if self.mcp_tools else []) + self.tools
+        self.agent = create_react_agent(
+            self.llm, tools, checkpointer=self.checkpointer)
+        return self.model
+
+    def send_message(self, message: str, session_id: str = "default_session", system_prompt: str = None):
+        """Send message to agent and stream response"""
+        if not self.agent:
+            raise RuntimeError(
+                "Agent must be initialized before sending messages")
+
+        session_config = {"configurable": {"thread_id": session_id}}
+
         if system_prompt:
             self.agent.update_state(values={"messages": [
                 {"role": "system", "content": system_prompt}]}, config=session_config)
 
-            for step in self.agent.stream({"messages": [
-                    {"role": "user", "content": message}]}, config=session_config, stream_mode="values"):
-                last_message = step["messages"][-1]
+        for step in self.agent.stream({"messages": [
+                {"role": "user", "content": message}]}, config=session_config, stream_mode="values"):
+            last_message = step["messages"][-1]
+            yield last_message
 
-            if cli_chat == True:
-                last_message.pretty_print()
 
-            return last_message.content
-
-    def start_cli_chat(self, session_config: str = "default_session", system_prompt: str = None):
-
-        cli_chat = True
-        session_config = {"configurable": {"thread_id": session_config}}
-
-        if system_prompt:
-            self.agent.update_state(values={"messages": [
-                {"role": "system", "content": system_prompt}]}, config=session_config)
-
-        print(
-            "\033[92m\n\n ----------- Starting chat session ----------- \n\n\033[0m")
-        while True:
-            prompt = input("\033[94mYou: \033[0m")
-            self.send_message(prompt, session_config,
-                              cli_chat, system_prompt)
-
-        print(
-            "\033[92m\n\n ----------- Ending chat session ----------- \n\n\033[0m")
-
-    async def _run_agent_async(self, session_config: str = "default_session", cli_chat: bool = False, mcp_server: dict = {}, system_prompt: str = None):
-        print("starting chat session ...", flush=True)
-        print("connecting to the MCP server ...", flush=True)
-        session_config = {"configurable": {"thread_id": session_config}}
-
-        client = MultiServerMCPClient(mcp_server)
-        server_name = list(mcp_server.keys())[0]
-
-        async with client.session(server_name) as session:
-
-            tools = await load_mcp_tools(session)
-            os.system("cls")
-            if tools != []:
-                print(
-                    "\033[92m✅ Successfully connected to the MCP server !\033[0m")
-                print(f"🔧 {str(len(tools))} tools loaded ")
-
-            tools += self.tools
-            agent = create_react_agent(
-                self.llm, tools, checkpointer=MemorySaver())
-
-            if system_prompt:
-                agent.update_state(values={"messages": [
-                    {"role": "system", "content": system_prompt}]}, config=session_config)
-
-            print(
-                f"\033[95m\n ----------- chat session started -----------\n \033[0m")
-            while True:
-                message = input("\033[94mwrite your message: \033[0m")
-                if message == "exit":
-                    break
-                if cli_chat == True:
-                    async for step in agent.astream({"messages": [
-                            {"role": "user", "content": message}]}, config=session_config, stream_mode="values"):
-                        last_message = step["messages"][-1]
-                        last_message.pretty_print()
-                else:
-                    res = await agent.ainvoke({"messages": [
-                        {"role": "user", "content": message}]}, config=session_config)
-                    print(f"\033[91mAI:\033[0m {res['messages'][-1].content}")
-        print(
-            f"\033[95m\n----------- Ending chat session ----------- \n\033[0m")
-
-    def run_agent_with_mcp(self, session_config: str = "default_session", cli_chat: bool = False, mcp_server: dict = {}, system_prompt: str = None, ):
-        asyncio.run(self._run_agent_async(
-            session_config, cli_chat, mcp_server, system_prompt))
-        return
+if __name__ == "__main__":
+    agent = OnlineAgent(model="gemini-2.5-flash", tools=[])
+    agent.initialize_agent()
+    while True:
+        message = input("Enter a message: ")
+        for step in agent.send_message(message, session_id="session_2"):
+            print(step.content)
