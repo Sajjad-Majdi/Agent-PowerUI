@@ -2,6 +2,8 @@ import json
 import os
 from typing import Literal
 
+backend_directory = os.path.dirname(__file__)
+
 
 class Config:
 
@@ -16,12 +18,13 @@ class Config:
 
     models_folder = "C:/Users/Sajjad/Desktop/persoanal assistant/resources/models"
     llama_server_path = "C:/Users/Sajjad/Desktop/persoanal assistant/resources/llamacpp/llama-server.exe"
-    db_path = os.path.join(os.path.dirname(os.path.dirname(
-        os.path.abspath(__file__))), 'data', 'chat_storage.db')
+    db_path = os.path.join(backend_directory, 'data', 'chat_storage.db')
+
+    memory_path = os.path.join(backend_directory, 'memory', 'fact.json')
 
     @staticmethod
     def get_system_prompt():
-        from .utils import get_memory
+        from utils import get_memory
         return f"""You are an advanced Personal assistant with longterm memory . Your primary goal is to help users efficiently while continuously learning and improving your performance.
 
                     CORE CAPABILITIES:
@@ -57,14 +60,14 @@ class Config:
 
     @staticmethod
     def get_default_tools():
-        from .tools import search_web, update_memory
+        from tools import search_web, update_memory
+
         return [search_web, update_memory]
 
     @staticmethod
     def get_mcp_servers():
         # When called from core directory, need to go up two levels to reach root
-        config_path = os.path.join(os.path.dirname(
-            os.path.dirname(__file__)), 'mcp.json')
+        config_path = os.path.join(backend_directory, 'mcp.json')
         with open(config_path, 'r') as file:
             mcp_servers = json.load(file)['mcpServers']
         return mcp_servers

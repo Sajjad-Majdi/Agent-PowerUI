@@ -2,21 +2,9 @@ import json
 import os
 import sqlite3
 
-# Handle both direct execution and module import
-if __name__ == "__main__":
-    # Direct execution - use absolute imports
-    import sys
-    sys.path.insert(0, os.path.dirname(
-        os.path.dirname(os.path.abspath(__file__))))
-    from core.config import Config
-    from core.online_agent import OnlineAgent
-    from core.local_agent import LocalAgent
-
-else:
-    # Module import - use relative imports
-    from .config import Config
-    from .online_agent import OnlineAgent
-    from .local_agent import LocalAgent
+from config import Config
+from online_agent import OnlineAgent
+from local_agent import LocalAgent
 
 
 def _list_session_ids():
@@ -124,9 +112,7 @@ def get_session_messages(session_id, agent_instance=None):
 
 
 def get_memory():
-    memory_path = os.path.join(os.path.dirname(os.path.dirname(
-        os.path.abspath(__file__))), 'memory', 'fact.json')
-    with open(memory_path, "r") as f:
+    with open(Config.memory_path, "r") as f:
         memory = json.load(f)
 
     text = ""
@@ -176,4 +162,5 @@ def initialize_local_agent():
 
 
 if __name__ == "__main__":
-    print(_list_session_ids())
+    # print(_list_session_ids())
+    print(Config.memory_path)

@@ -2,7 +2,7 @@ import time
 import subprocess
 import sqlite3
 import os
-from .config import Config
+from config import Config
 from langchain_openai import ChatOpenAI
 from langgraph.prebuilt import create_react_agent
 from langgraph.checkpoint.sqlite import SqliteSaver
@@ -23,6 +23,7 @@ class LocalAgent:
         self.llama_process = None
         self.agent = None
         self.llm = None
+        self.system_prompt = Config.get_system_prompt()
         self.checkpointer = SqliteSaver(
             sqlite3.connect(db_path, check_same_thread=False))
 
@@ -67,7 +68,7 @@ class LocalAgent:
             raise RuntimeError(
                 "Server must be started before initializing agent")
         self.agent = create_react_agent(
-            self.llm, tools, checkpointer=self.checkpointer)
+            self.llm, tools, checkpointer=self.checkpointer, prompt=self.system_prompt)
         return self.agent
 
     async def initialize_agent_with_mcp(self, tools: list, mcp_servers: dict):
@@ -86,26 +87,22 @@ class LocalAgent:
                     print(f"Loaded {len(mcp_tools)} MCP tools")
                     all_tools = mcp_tools + tools
                     self.agent = create_react_agent(
-                        self.llm, all_tools, checkpointer=self.checkpointer)
+                        self.llm, all_tools, checkpointer=self.checkpointer, prompt=self.system_prompt)
                     return self.agent
             except Exception as e:
                 print(f"MCP connection failed: {e}, using basic tools only")
 
         self.agent = create_react_agent(
-            self.llm, tools, checkpointer=self.checkpointer)
+            self.llm, tools, checkpointer=self.checkpointer, prompt=self.system_prompt)
         return self.agent
 
-    def send_message(self, message: str, session_id: str = "default_session", system_prompt: str = None):
-        """Send message to agent and get response"""
+    def send_message(self, message: str, session_id: str = "default_session"):
+        """Send message to agent and stream response"""
         if not self.agent:
             raise RuntimeError(
                 "Agent must be initialized before sending messages")
 
         session_config = {"configurable": {"thread_id": session_id}}
-
-        if system_prompt:
-            self.agent.update_state(values={"messages": [
-                {"role": "system", "content": system_prompt}]}, config=session_config)
 
         for step in self.agent.stream({"messages": [
                 {"role": "user", "content": message}]}, config=session_config, stream_mode="values"):

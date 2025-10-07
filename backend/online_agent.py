@@ -8,12 +8,12 @@ import sqlite3
 import asyncio
 import os
 import warnings
-from .config import Config
+from config import Config
 os.environ['GRPC_VERBOSITY'] = 'NONE'
 warnings.filterwarnings('ignore', category=UserWarning)
 
-db_path = Config.db_path
-os.makedirs(os.path.dirname(db_path), exist_ok=True)
+# db_path = Config.db_path
+# os.makedirs(os.path.dirname(db_path), exist_ok=True)
 
 
 class OnlineAgent:
@@ -24,8 +24,9 @@ class OnlineAgent:
         self.tools = tools
         self.llm = init_chat_model(model=f"google_genai:{self.model}")
         self.agent = None
+        self.system_prompt = Config.get_system_prompt()
         self.checkpointer = SqliteSaver(
-            sqlite3.connect(db_path, check_same_thread=False))
+            sqlite3.connect(Config.db_path, check_same_thread=False))
         # MCP metadata for UI: list of loaded tools and grouping by server
         self.mcp_tools = []
         self.mcp_tools_by_server = {}
@@ -33,7 +34,7 @@ class OnlineAgent:
     def initialize_agent(self):
         """Initialize agent with basic tools"""
         self.agent = create_react_agent(
-            self.llm, self.tools, checkpointer=self.checkpointer)
+            self.llm, self.tools, checkpointer=self.checkpointer, prompt=self.system_prompt)
         return self.agent
 
     async def initialize_agent_with_mcp(self, mcp_servers: dict):
@@ -63,13 +64,13 @@ class OnlineAgent:
 
                     all_tools = mcp_tools + self.tools
                     self.agent = create_react_agent(
-                        self.llm, all_tools, checkpointer=self.checkpointer)
+                        self.llm, all_tools, checkpointer=self.checkpointer, prompt=self.system_prompt)
                     return self.agent
             except Exception as e:
                 print(f"MCP connection failed: {e}, using basic tools only")
 
         self.agent = create_react_agent(
-            self.llm, self.tools, checkpointer=self.checkpointer)
+            self.llm, self.tools, checkpointer=self.checkpointer, prompt=self.system_prompt)
         return self.agent
 
     def set_model(self, model: str):
@@ -81,20 +82,16 @@ class OnlineAgent:
         # Prefer MCP tools if already loaded
         tools = (self.mcp_tools if self.mcp_tools else []) + self.tools
         self.agent = create_react_agent(
-            self.llm, tools, checkpointer=self.checkpointer)
+            self.llm, tools, checkpointer=self.checkpointer, prompt=self.system_prompt)
         return self.model
 
-    def send_message(self, message: str, session_id: str = "default_session", system_prompt: str = None):
+    def send_message(self, message: str, session_id: str = "default_session"):
         """Send message to agent and stream response"""
         if not self.agent:
             raise RuntimeError(
                 "Agent must be initialized before sending messages")
 
         session_config = {"configurable": {"thread_id": session_id}}
-
-        if system_prompt:
-            self.agent.update_state(values={"messages": [
-                {"role": "system", "content": system_prompt}]}, config=session_config)
 
         for step in self.agent.stream({"messages": [
                 {"role": "user", "content": message}]}, config=session_config, stream_mode="values"):
@@ -103,9 +100,36 @@ class OnlineAgent:
 
 
 if __name__ == "__main__":
-    agent = OnlineAgent(model="gemini-2.5-flash", tools=[])
+    agent = OnlineAgent(model="gemini-2.5-flash",
+                        tools=Config.get_default_tools())
     agent.initialize_agent()
-    while True:
-        message = input("Enter a message: ")
-        for step in agent.send_message(message, session_id="session_2"):
-            print(step.content)
+    print("============ Conversation ============")
+
+    try:
+        while True:
+            print("\033[94mHuman: \033[0m", end="")
+            message = input("")
+            for step in agent.send_message(message, session_id="test_3"):
+                if hasattr(step, 'tool_calls') and step.tool_calls:
+                    for tool_call in step.tool_calls:
+                        print(
+                            f"\033[93mtool call:\033[0m {tool_call['name']}({tool_call['args']})")
+                elif hasattr(step, 'content') and step.content:
+                    if step.type == "human":
+                        continue
+                    elif step.type == "ai":
+                        print(f"\033[92mAI:\033[0m {step.content}")
+                    else:
+                        print(f"\033[95mTool Message:\033[0m {step.content}")
+    except (Exception, KeyboardInterrupt) as e:
+        print("=============== State ================")
+        state = agent.agent.get_state(
+            config={"configurable": {"thread_id": "test_3"}})
+        for message in state.values["messages"]:
+            print(f"------{message.type}------\n{message.content}\n")
+    finally:
+        print("==== State ====")
+        state = agent.agent.get_state(
+            config={"configurable": {"thread_id": "test_3"}})
+        for message in state.values["messages"]:
+            print(f"------{message.type}------\n{message.content}\n")

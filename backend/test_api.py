@@ -14,4 +14,4 @@ def list_sessions():
 
 if __name__ == '__main__':
     messages = list_sessions()
-    print(messages)
+    print(len(messages["sessions"]))

@@ -1,7 +1,7 @@
 from flask import Flask, request, jsonify, Response
 from flask_cors import CORS
-from core.config import Config
-from core.utils import (
+from config import Config
+from utils import (
     initialize_local_agent as init_local_agent,
     initialize_online_agent as init_online_agent,
     list_chat_sessions_named,
@@ -33,7 +33,6 @@ def chat():
     data = request.json
     message = data.get('message', '')
     session_id = data.get('session_id', 'default_session')
-    system_prompt = data.get('system_prompt', Config.get_system_prompt())
 
     if not message:
         return jsonify({'error': 'Message is required'}), 400
@@ -44,7 +43,7 @@ def chat():
     try:
         def generate_response():
             try:
-                for last_message in online_agent.send_message(message, session_id, system_prompt):
+                for last_message in online_agent.send_message(message, session_id):
 
                     if hasattr(last_message, 'tool_calls') and last_message.tool_calls:
                         for tool_call in last_message.tool_calls:
@@ -78,7 +77,6 @@ def chat_local():
     data = request.json
     message = data.get('message', '')
     session_id = data.get('session_id', 'default_session')
-    system_prompt = data.get('system_prompt', Config.get_system_prompt())
 
     if not message:
         return jsonify({'error': 'Message is required'}), 400
@@ -89,7 +87,7 @@ def chat_local():
     try:
         def generate_response():
             try:
-                for last_message in local_agent.send_message(message, session_id, system_prompt):
+                for last_message in local_agent.send_message(message, session_id):
 
                     if hasattr(last_message, 'tool_calls') and last_message.tool_calls:
                         for tool_call in last_message.tool_calls:
@@ -154,10 +152,16 @@ def get_tools():
 def get_memory_data():
     """Get memory data for display"""
     try:
-        memory_path = os.path.join(os.path.dirname(
-            os.path.abspath(__file__)), 'memory', 'fact.json')
+        memory_path = Config.memory_path
+        os.makedirs(os.path.dirname(memory_path), exist_ok=True)
+        if not os.path.exists(memory_path):
+            with open(memory_path, 'w') as f:
+                json.dump({}, f)
         with open(memory_path, "r") as f:
-            memory = json.load(f)
+            try:
+                memory = json.load(f)
+            except json.JSONDecodeError:
+                memory = {}
         return jsonify({'memory': memory})
     except Exception as e:
         return jsonify({'error': str(e)}), 500

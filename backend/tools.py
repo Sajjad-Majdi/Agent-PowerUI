@@ -4,6 +4,7 @@ from langchain_tavily import TavilySearch
 from datetime import datetime
 import json
 from typing import Optional
+from config import Config
 
 
 @tool
@@ -43,8 +44,18 @@ def update_memory(fact: str, category: str, fact_id: Optional[int] = None) -> st
         category (str): The category of the fact.
         fact_id (int): The id of the conflicting fact to update.
     """
-    with open("memory/fact.json", "r") as f:
-        memory = json.load(f)
+    # Resolve absolute path and ensure file exists
+    memory_path = Config.memory_path
+    os.makedirs(os.path.dirname(memory_path), exist_ok=True)
+    if not os.path.exists(memory_path):
+        # initialize empty memory structure
+        with open(memory_path, "w") as f:
+            json.dump({}, f)
+    with open(memory_path, "r") as f:
+        try:
+            memory = json.load(f)
+        except json.JSONDecodeError:
+            memory = {}
 
     if category not in memory:
         memory[category] = []
@@ -69,7 +80,11 @@ def update_memory(fact: str, category: str, fact_id: Optional[int] = None) -> st
                 break
 
     # Save back to file
-    with open("memory/fact.json", "w") as f:
+    with open(memory_path, "w") as f:
         json.dump(memory, f, indent=4)
 
     return "memory updated successfully"
+
+
+if __name__ == "__main__":
+    update_memory("Sajjad is a programmer", "User Information")

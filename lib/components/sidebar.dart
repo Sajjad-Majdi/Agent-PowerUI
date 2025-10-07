@@ -56,19 +56,9 @@ class _SidebarState extends State<Sidebar> {
     });
     try {
       await ApiService.deleteSession(sessionId);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Session deleted successfully')),
-        );
-      }
     } catch (e) {
       // Re-sync from server on failure
       await _loadChatSessions();
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error deleting session: $e')),
-        );
-      }
     } finally {
       // Ensure list reflects backend state
       await _loadChatSessions();
@@ -325,7 +315,7 @@ class _SessionItemState extends State<_SessionItem> {
                   Expanded(
                     child: Text(
                       widget.sessionName,
-                      maxLines: 2,
+                      maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       textAlign: TextAlign.left,
                       style: TextStyle(
