@@ -1,5 +1,6 @@
 import json
 import os
+from datetime import datetime
 from typing import Literal
 
 backend_directory = os.path.dirname(__file__)
@@ -37,11 +38,16 @@ class Config:
                     - Note failures and what went wrong to avoid repeating mistakes
                     - Build procedural knowledge of effective workflows
                     - Update your understanding based on new information
+                    - today is: {datetime.now().strftime("%Y-%m-%d")}
+                    - consider the memory timestamps and current date for date-sensitive information and reminders
 
                     CURRENT MEMORY:
                     <memory>
                     {get_memory()}
                     </memory>
+
+                    
+
 
                     INTERACTION PRINCIPLES:
                     1. Be proactive - anticipate user needs based on stored knowledge

@@ -1,4 +1,5 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'dart:convert';
 
 import '/components/subunits/utilities.dart';
 import '/services/api_service.dart';
@@ -22,25 +23,112 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
 
       // 4. Stream message from API
       try {
-        String fullResponse = '';
+        String toolMarkers = '';
+        Map<String, ToolCallState> toolCallStates = {};
+        int toolCallCounter = 0;
+        String? pendingToolCallId;
+        int? toolMessageIndex;
+        int? aiMessageIndex;
+
         await for (final chunk in ApiService.streamChat(
             message: event.message, sessionId: sessionId)) {
           // Handle tool calls
           if (chunk['type'] == 'tool_call') {
-            chatHistory.removeWhere((m) => m.isLoading == true);
-            chatHistory.add(ChatMessage(
-              isMe: false,
-              toolCall: chunk['content'],
-            ));
-            chatHistory.add(ChatMessage(isMe: false, isLoading: true));
+            final toolData = chunk['content'] as Map<String, dynamic>;
+            final incomingName = toolData['name'] ?? 'Unknown Tool';
+            final incomingArgs =
+                Map<String, dynamic>.from(toolData['args'] ?? {});
+            final incomingArgsKey = jsonEncode(incomingArgs);
+
+            String? existingPendingId;
+            toolCallStates.forEach((id, state) {
+              if (state.status == 'in_progress' &&
+                  state.toolName == incomingName &&
+                  jsonEncode(state.toolArgs) == incomingArgsKey) {
+                existingPendingId = id;
+              }
+            });
+
+            if (existingPendingId != null) {
+              // Duplicate tool_call for same tool; reuse existing id and do not add another placeholder
+              pendingToolCallId = existingPendingId;
+            } else {
+              toolCallCounter++;
+              final toolId = 'tool_$toolCallCounter';
+              pendingToolCallId = toolId;
+
+              toolCallStates[toolId] = ToolCallState(
+                toolName: incomingName,
+                toolArgs: incomingArgs,
+                status: 'in_progress',
+              );
+
+              toolMarkers += '<tool_call id="$toolId"></tool_call>';
+            }
+
+            if (toolMessageIndex == null) {
+              chatHistory.removeWhere((m) => m.isLoading == true);
+              chatHistory.add(ChatMessage(
+                text: toolMarkers,
+                isMe: false,
+                toolCallStates: Map.from(toolCallStates),
+              ));
+              toolMessageIndex = chatHistory.length - 1;
+            } else {
+              chatHistory[toolMessageIndex].text = toolMarkers;
+              chatHistory[toolMessageIndex].toolCallStates =
+                  Map.from(toolCallStates);
+            }
             emit(ChatLoading(chatHistory, sessionId));
+          }
+
+          // Handle tool message (mark tool call as done, don't show message)
+          else if (chunk['type'] == 'tool_message') {
+            if (pendingToolCallId != null &&
+                toolCallStates.containsKey(pendingToolCallId)) {
+              toolCallStates[pendingToolCallId] = ToolCallState(
+                toolName: toolCallStates[pendingToolCallId]!.toolName,
+                toolArgs: toolCallStates[pendingToolCallId]!.toolArgs,
+                status: 'done',
+              );
+
+              if (toolMessageIndex != null) {
+                chatHistory[toolMessageIndex].toolCallStates =
+                    Map.from(toolCallStates);
+                chatHistory[toolMessageIndex].text = toolMarkers;
+
+                // After tool finishes, show a single global spinner for AI message generation
+                chatHistory.removeWhere((m) => m.isLoading == true);
+                chatHistory.add(ChatMessage(isMe: false, isLoading: true));
+
+                emit(ChatLoading(chatHistory, sessionId));
+              }
+              pendingToolCallId = null;
+            }
           }
 
           // Handle AI messages
           else if (chunk['type'] == 'ai_message') {
-            fullResponse = chunk['content'] ?? '';
+            final aiText = chunk['content'] ?? '';
+
+            // Close the loading spinner and post AI message as a separate bubble
             chatHistory.removeWhere((m) => m.isLoading == true);
-            chatHistory.add(ChatMessage(text: fullResponse, isMe: false));
+
+            if (aiMessageIndex == null) {
+              chatHistory.add(ChatMessage(
+                text: aiText,
+                isMe: false,
+              ));
+              aiMessageIndex = chatHistory.length - 1;
+            } else {
+              chatHistory[aiMessageIndex].text = aiText;
+            }
+
+            // Reset tool aggregation so subsequent tools start a new box
+            toolMarkers = '';
+            toolCallStates = {};
+            toolMessageIndex = null;
+
             emit(ChatLoading(chatHistory, sessionId));
           }
 

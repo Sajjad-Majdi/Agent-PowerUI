@@ -4,7 +4,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:gpt_markdown/gpt_markdown.dart';
 import 'package:gpt_markdown/custom_widgets/selectable_adapter.dart';
 import 'package:iconsax/iconsax.dart';
-
+import '/theme.dart';
 import '/components/subunits/utilities.dart';
 import '/components/subunits/code_element_builder.dart';
 import '/components/subunits/math_element_builder.dart';
@@ -16,6 +16,7 @@ class MessageBubble extends StatefulWidget {
   final bool isMe;
   final bool isLoading;
   final Map<String, dynamic>? toolCall;
+  final Map<String, ToolCallState>? toolCallStates;
 
   const MessageBubble({
     super.key,
@@ -23,6 +24,7 @@ class MessageBubble extends StatefulWidget {
     this.isMe = false,
     this.isLoading = false,
     this.toolCall,
+    this.toolCallStates,
   });
 
   @override
@@ -32,11 +34,14 @@ class MessageBubble extends StatefulWidget {
 class _MessageBubbleState extends State<MessageBubble> {
   bool isHovered = false;
   bool isCopied = false;
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final persianMedium = AppTheme.textStyles.persianMedium;
+    final englishMedium = AppTheme.textStyles.englishMedium;
 
-    // Tool call display
+    // Legacy tool call display (for backward compatibility)
     if (widget.toolCall != null) {
       return Container(
         alignment: Alignment.centerLeft,
@@ -44,72 +49,149 @@ class _MessageBubbleState extends State<MessageBubble> {
         child: ToolCallBuilder(
           toolName: widget.toolCall!['name'] ?? 'Unknown Tool',
           toolArgs: Map<String, dynamic>.from(widget.toolCall!['args'] ?? {}),
+          status: 'done',
         ),
       );
     }
 
     final isRtl = isRTL(widget.message);
 
-    final gptMarkdown = SelectionArea(
-      child: GptMarkdown(
-        widget.message,
+    // Build content with mixed text and tool calls
+    Widget buildMessageContent() {
+      // If message has embedded tool calls, parse and render
+      if (!widget.isMe && widget.message.contains('<tool_call')) {
+        final segments = parseMessageWithToolCalls(widget.message);
+        final toolStates = widget.toolCallStates ?? {};
 
-        followLinkColor: true,
-        useDollarSignsForLatex: true,
-        style: TextStyle(
-          color: theme.textTheme.bodyMedium?.color,
-          fontFamily: isRtl ? 'Vazir' : 'Nunito',
-          fontWeight: FontWeight.w600,
-          fontSize: 16,
+        return Column(
+          crossAxisAlignment:
+              isRtl ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+          children: segments.map((segment) {
+            if (segment.type == 'text') {
+              return SelectionArea(
+                child: GptMarkdown(
+                  segment.text!,
+                  followLinkColor: true,
+                  useDollarSignsForLatex: true,
+                  style: TextStyle(
+                    color: theme.textTheme.bodyMedium?.color,
+                    fontFamily: isRtl ? 'Vazir' : 'Nunito',
+                    fontWeight: FontWeight.w600,
+                    fontSize: 16,
+                  ),
+                  textDirection: isRtl ? TextDirection.rtl : TextDirection.ltr,
+                  onLinkTap: (url, title) async {
+                    final uri = Uri.parse(url);
+                    if (await canLaunchUrl(uri)) {
+                      await launchUrl(uri,
+                          mode: LaunchMode.externalApplication);
+                    } else {
+                      debugPrint('Could not launch $uri');
+                    }
+                  },
+                  highlightBuilder: (context, text, style) {
+                    return Container(
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.onSurface.withAlpha(30),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 6, vertical: 3),
+                      child: Text(text, style: style.copyWith(fontSize: 14)),
+                    );
+                  },
+                  codeBuilder: (context, name, code, closed) {
+                    if (closed) {
+                      return CodeBlock(text: code, language: name);
+                    }
+                    return SelectableAdapter(
+                      selectedText: code,
+                      child: CodeInline(code: code),
+                    );
+                  },
+                  linkBuilder: (context, text, url, style) {
+                    final linkText = text.toPlainText();
+                    return LinkBuilder(
+                        linkText: linkText, url: url, style: style);
+                  },
+                  latexBuilder: (context, tex, style, inline) {
+                    return SelectableAdapter(
+                      selectedText: tex,
+                      child: MathBuilder(
+                          tex: tex, textStyle: style, inline: inline),
+                    );
+                  },
+                ),
+              );
+            } else {
+              // Render tool call
+              final toolState = toolStates[segment.toolId];
+              if (toolState != null) {
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: ToolCallBuilder(
+                    toolName: toolState.toolName,
+                    toolArgs: toolState.toolArgs,
+                    status: toolState.status,
+                  ),
+                );
+              }
+              return SizedBox.shrink();
+            }
+          }).toList(),
+        );
+      }
+
+      // Otherwise, render as regular markdown
+      return SelectionArea(
+        child: GptMarkdown(
+          widget.message,
+          followLinkColor: true,
+          useDollarSignsForLatex: true,
+          style: isRtl ? persianMedium : englishMedium,
+          textDirection: isRtl ? TextDirection.rtl : TextDirection.ltr,
+          onLinkTap: (url, title) async {
+            final uri = Uri.parse(url);
+            if (await canLaunchUrl(uri)) {
+              await launchUrl(uri, mode: LaunchMode.externalApplication);
+            } else {
+              debugPrint('Could not launch $uri');
+            }
+          },
+          highlightBuilder: (context, text, style) {
+            return Container(
+              decoration: BoxDecoration(
+                color: theme.colorScheme.onSurface.withAlpha(30),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+              child: Text(text, style: style.copyWith(fontSize: 14)),
+            );
+          },
+          codeBuilder: (context, name, code, closed) {
+            if (closed) {
+              return CodeBlock(text: code, language: name);
+            }
+            return SelectableAdapter(
+              selectedText: code,
+              child: CodeInline(code: code),
+            );
+          },
+          linkBuilder: (context, text, url, style) {
+            final linkText = text.toPlainText();
+            return LinkBuilder(linkText: linkText, url: url, style: style);
+          },
+          latexBuilder: (context, tex, style, inline) {
+            return SelectableAdapter(
+              selectedText: tex,
+              child: MathBuilder(tex: tex, textStyle: style, inline: inline),
+            );
+          },
         ),
-        textDirection: isRtl ? TextDirection.rtl : TextDirection.ltr,
-        onLinkTap: (url, title) async {
-          final uri = Uri.parse(url);
-          if (await canLaunchUrl(uri)) {
-            await launchUrl(uri, mode: LaunchMode.externalApplication);
-          } else {
-            debugPrint('Could not launch $uri');
-          }
-        },
+      );
+    }
 
-        // -------------------------- Highlight Builder --------------------------------
-        highlightBuilder: (context, text, style) {
-          return Container(
-            decoration: BoxDecoration(
-              color: theme.colorScheme.onSurface.withAlpha(30),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-            child: Text(text, style: style.copyWith(fontSize: 14)),
-          );
-        },
-
-        // --------------------------- Code Builder ------------------------------------
-        codeBuilder: (context, name, code, closed) {
-          if (closed) {
-            return CodeBlock(text: code, language: name);
-          }
-          return SelectableAdapter(
-            selectedText: code,
-            child: CodeInline(code: code),
-          );
-        },
-
-        // --------------------------- Link Builder ------------------------------------
-        linkBuilder: (context, text, url, style) {
-          final linkText = text.toPlainText();
-          return LinkBuilder(linkText: linkText, url: url, style: style);
-        },
-
-        // --------------------------- Math Builder ------------------------------------
-        latexBuilder: (context, tex, style, inline) {
-          return SelectableAdapter(
-            selectedText: tex,
-            child: MathBuilder(tex: tex, textStyle: style, inline: inline),
-          );
-        },
-      ),
-    );
+    final contentWidget = buildMessageContent();
 
     if (widget.isMe) {
       return LayoutBuilder(builder: (context, constraints) {
@@ -128,10 +210,10 @@ class _MessageBubbleState extends State<MessageBubble> {
                   padding:
                       const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
                   decoration: BoxDecoration(
-                    color: theme.cardTheme.color,
+                    color: AppTheme.colors.messageBubbleColor,
                     borderRadius: BorderRadius.circular(18),
                   ),
-                  child: gptMarkdown,
+                  child: contentWidget,
                 ),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -157,8 +239,9 @@ class _MessageBubbleState extends State<MessageBubble> {
                 crossAxisAlignment:
                     isRtl ? CrossAxisAlignment.end : CrossAxisAlignment.start,
                 children: [
-                  Container(child: gptMarkdown),
-                  CopyButton(text: widget.message),
+                  Container(child: contentWidget),
+                  if (!widget.message.contains('<tool_call'))
+                    CopyButton(text: widget.message),
                 ],
               ),
       );

@@ -7,6 +7,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '/blocs/chat/chat_bloc.dart';
 import '/pages/chat_interface.dart';
 import '/services/api_service.dart';
+import '/theme.dart';
 
 void main() async {
   // Ensure flutter bindings are initialized before doing anything else.
@@ -58,7 +59,7 @@ class _MainAppState extends State<MainApp> with WindowListener {
         return;
       }
     } catch (e) {
-      print('Server not running, starting new instance...');
+      // Server not running, proceed to start it
     }
 
     try {
@@ -70,17 +71,12 @@ class _MainAppState extends State<MainApp> with WindowListener {
         runInShell: true,
       );
 
-      _backendProcess!.stdout.transform(utf8.decoder).listen((data) {
+      _backendProcess!.stderr.transform(utf8.decoder).listen((data) {
         print('Backend: $data');
       });
 
-      _backendProcess!.stderr.transform(utf8.decoder).listen((data) {
-        print('Backend Error: $data');
-      });
-
-      print('Backend server started on http://localhost:5000');
-      // Actively wait for readiness instead of fixed delay
       await ApiService.ensureBackendReady(timeout: const Duration(seconds: 60));
+      print('Backend server started on http://localhost:5000');
     } catch (e) {
       print('Failed to start backend server: $e');
     }
@@ -103,21 +99,16 @@ class _MainAppState extends State<MainApp> with WindowListener {
 
   @override
   void dispose() {
-    _terminateBackend();
     if (Platform.isWindows) {
       windowManager.removeListener(this);
-      windowManager.setPreventClose(false);
     }
     super.dispose();
   }
 
   @override
   void onWindowClose() async {
-    final isPreventClose = await windowManager.isPreventClose();
-    if (isPreventClose) {
-      await _terminateBackend();
-      await windowManager.destroy();
-    }
+    await _terminateBackend();
+    await windowManager.destroy();
   }
 
   @override
@@ -128,24 +119,13 @@ class _MainAppState extends State<MainApp> with WindowListener {
       // ------------ Dark Theme ------------
       theme: ThemeData(
         useMaterial3: true,
-        scaffoldBackgroundColor: const Color.fromARGB(255, 15, 30, 46),
+        brightness: Brightness.dark,
+        scaffoldBackgroundColor: AppTheme.colors.backgroundColor,
         colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF3A86FF),
+          seedColor: AppTheme.colors.primaryColor,
           brightness: Brightness.dark,
-          surface: const Color(0xFF1B263B),
+          surface: AppTheme.colors.messageBubbleColor,
         ),
-        textTheme: TextTheme(
-          bodyMedium: TextStyle(
-            color: Colors.white.withAlpha(230),
-            height: 1.5,
-          ),
-        ),
-        inputDecorationTheme: InputDecorationTheme(
-          filled: true,
-          fillColor: const Color(0xFF1B263B),
-          hintStyle: TextStyle(color: Colors.white.withAlpha(150)),
-        ),
-        cardTheme: CardThemeData(color: const Color.fromARGB(255, 30, 50, 71)),
       ),
       home: MultiBlocProvider(
         providers: [

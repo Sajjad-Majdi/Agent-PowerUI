@@ -47,25 +47,22 @@ def chat():
 
                     if hasattr(last_message, 'tool_calls') and last_message.tool_calls:
                         for tool_call in last_message.tool_calls:
-                            yield f"data: {json.dumps({'type': 'tool_call', 'content': {'name': tool_call['name'], 'args': tool_call['args']}})}\n\n"
+                            yield json.dumps({'type': 'tool_call', 'content': {'name': tool_call['name'], 'args': tool_call['args']}}) + '\n'
 
                     elif hasattr(last_message, 'content') and last_message.content:
                         if last_message.type == "human":
-                            yield f"data: {json.dumps({'type': 'user_message', 'content': last_message.content})}\n\n"
+                            yield json.dumps({'type': 'user_message', 'content': last_message.content}) + '\n'
+                        elif last_message.type == "ai":
+                            yield json.dumps({'type': 'ai_message', 'content': last_message.content}) + '\n'
                         else:
-                            content_str = str(last_message.content).lower()
-                            if ('result 1' in content_str and ('result 2' in content_str or 'result 3' in content_str)) or \
-                               ('search result' in content_str and 'result 1' in content_str):
-                                continue
-                            else:
-                                yield f"data: {json.dumps({'type': 'ai_message', 'content': last_message.content})}\n\n"
+                            yield json.dumps({'type': 'tool_message', 'content': last_message.content}) + '\n'
 
-                yield f"data: {json.dumps({'type': 'complete'})}\n\n"
+                yield json.dumps({'type': 'complete'}) + '\n'
 
             except Exception as e:
-                yield f"data: {json.dumps({'type': 'error', 'content': str(e)})}\n\n"
+                yield json.dumps({'type': 'error', 'content': str(e)}) + '\n'
 
-        return Response(generate_response(), mimetype='text/event-stream')
+        return Response(generate_response(), mimetype='application/x-ndjson')
 
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -91,25 +88,27 @@ def chat_local():
 
                     if hasattr(last_message, 'tool_calls') and last_message.tool_calls:
                         for tool_call in last_message.tool_calls:
-                            yield f"data: {json.dumps({'type': 'tool_call', 'content': {'name': tool_call['name'], 'args': tool_call['args']}})}\n\n"
+                            yield json.dumps({'type': 'tool_call', 'content': {'name': tool_call['name'], 'args': tool_call['args']}}) + '\n'
 
                     elif hasattr(last_message, 'content') and last_message.content:
                         if last_message.type == "human":
-                            yield f"data: {json.dumps({'type': 'user_message', 'content': last_message.content})}\n\n"
-                        else:
+                            continue
+                        elif last_message.type == "ai":
                             content_str = str(last_message.content).lower()
                             if ('result 1' in content_str and ('result 2' in content_str or 'result 3' in content_str)) or \
                                ('search result' in content_str and 'result 1' in content_str):
                                 continue
                             else:
-                                yield f"data: {json.dumps({'type': 'ai_message', 'content': last_message.content})}\n\n"
+                                yield json.dumps({'type': 'ai_message', 'content': last_message.content}) + '\n'
+                        else:
+                            yield json.dumps({'type': 'tool_message', 'content': last_message.content}) + '\n'
 
-                yield f"data: {json.dumps({'type': 'complete'})}\n\n"
+                yield json.dumps({'type': 'complete'}) + '\n'
 
             except Exception as e:
-                yield f"data: {json.dumps({'type': 'error', 'content': str(e)})}\n\n"
+                yield json.dumps({'type': 'error', 'content': str(e)}) + '\n'
 
-        return Response(generate_response(), mimetype='text/event-stream')
+        return Response(generate_response(), mimetype='application/x-ndjson')
 
     except Exception as e:
         return jsonify({'error': str(e)}), 500

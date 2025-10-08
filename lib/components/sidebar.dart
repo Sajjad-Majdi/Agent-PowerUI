@@ -1,6 +1,8 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:iconsax/iconsax.dart';
 import '/services/api_service.dart';
+import '/theme.dart';
+import 'settings_button.dart';
 
 class Sidebar extends StatefulWidget {
   final VoidCallback onNewChat;
@@ -65,112 +67,11 @@ class _SidebarState extends State<Sidebar> {
     }
   }
 
-  void _showSettingsMenu(BuildContext context) {
-    final RenderBox button = context.findRenderObject() as RenderBox;
-    final RenderBox overlay =
-        Navigator.of(context).overlay!.context.findRenderObject() as RenderBox;
-    final Offset position =
-        button.localToGlobal(Offset.zero, ancestor: overlay);
-
-    showMenu(
-      context: context,
-      position: RelativeRect.fromLTRB(
-        position.dx,
-        position.dy - 120,
-        position.dx + button.size.width,
-        position.dy,
-      ),
-      items: [
-        PopupMenuItem(
-          child: ListTile(
-            leading: Icon(Icons.storage),
-            title: Text('Local Models'),
-            contentPadding: EdgeInsets.zero,
-          ),
-          onTap: () => _showLocalModels(),
-        ),
-        PopupMenuItem(
-          child: ListTile(
-            leading: Icon(Icons.memory),
-            title: Text('Agent Memory'),
-            contentPadding: EdgeInsets.zero,
-          ),
-          onTap: () => _showAgentMemory(),
-        ),
-      ],
-    );
-  }
-
-  Future<void> _showLocalModels() async {
-    final models = await ApiService.listLocalModels();
-    if (!mounted) return;
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Available Local Models'),
-        content: SizedBox(
-          width: 400,
-          child: models.isEmpty
-              ? Text('No models found in models folder')
-              : ListView.builder(
-                  shrinkWrap: true,
-                  itemCount: models.length,
-                  itemBuilder: (context, index) {
-                    return ListTile(
-                      leading: Icon(Icons.insert_drive_file),
-                      title: Text(models[index]),
-                    );
-                  },
-                ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('Close'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _showAgentMemory() async {
-    try {
-      final memory = await ApiService.getMemory();
-      if (!mounted) return;
-
-      showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: Text('Agent Memory'),
-          content: SizedBox(
-            width: 400,
-            height: 500,
-            child: SingleChildScrollView(
-              child: Text(
-                memory.entries.map((e) => '${e.key}: ${e.value}').join('\n\n'),
-              ),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text('Close'),
-            ),
-          ],
-        ),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error loading memory: $e')),
-      );
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final englishMedium = AppTheme.textStyles.englishMedium;
+    // final persianMedium = AppTheme.textStyles.persianMedium;
 
     return Container(
       decoration: BoxDecoration(
@@ -192,7 +93,8 @@ class _SidebarState extends State<Sidebar> {
                 ),
               ),
               label: Text('New Chat',
-                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+                  style: englishMedium.copyWith(
+                      fontSize: 15.0, color: theme.colorScheme.primary)),
               icon: Icon(Iconsax.add, size: 20),
             ),
           ),
@@ -235,32 +137,18 @@ class _SidebarState extends State<Sidebar> {
                       ),
           ),
           Padding(
-            padding: const EdgeInsets.all(12.0),
-            child: Column(
-              children: [
-                SizedBox(height: 8),
-                Builder(
-                  builder: (context) => InkWell(
-                    onTap: () => _showSettingsMenu(context),
-                    borderRadius: BorderRadius.circular(8),
-                    child: Container(
-                      width: double.infinity,
-                      padding:
-                          EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.start,
-                        children: [
-                          Icon(Icons.settings, size: 18),
-                          SizedBox(width: 8),
-                          Text('Settings', style: TextStyle(fontSize: 14)),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ],
+            padding: EdgeInsets.symmetric(horizontal: 16),
+            child: Divider(
+              height: 1,
+              thickness: 1,
+              color: theme.colorScheme.outline.withValues(alpha: 0.2),
             ),
           ),
+          Container(
+            width: double.infinity,
+            margin: EdgeInsets.all(5),
+            child: SettingsButton(),
+          )
         ],
       ),
     );
@@ -320,7 +208,6 @@ class _SessionItemState extends State<_SessionItem> {
                       textAlign: TextAlign.left,
                       style: TextStyle(
                         fontSize: 15,
-                        // fontWeight: FontWeight.w600,
                         color: widget.theme.colorScheme.onSurface,
                       ),
                     ),
@@ -338,7 +225,6 @@ class _SessionItemState extends State<_SessionItem> {
                                 borderRadius: BorderRadius.circular(12),
                               ),
                             ),
-                            // splashRadius: 20,
                           )
                         : SizedBox.shrink(),
                   ),

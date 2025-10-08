@@ -2,8 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:iconsax/iconsax.dart';
 import '/components/subunits/utilities.dart';
-import '/components/subunits/tools_menu.dart';
+import 'tool_box.dart';
 import '/services/api_service.dart';
+import '/theme.dart';
 
 class InputBar extends StatefulWidget {
   final TextEditingController controller;
@@ -58,9 +59,9 @@ class _InputBarState extends State<InputBar> with TickerProviderStateMixin {
     setState(() => _toolsLoading = false);
   }
 
-  void _showToolsMenu(BuildContext context) {
+  void _showToolsBox(BuildContext context) {
     if (_tools.isEmpty && !_toolsLoading) {
-      // Lazy refresh right before showing the menu
+      // Lazy refresh right before showing the box
       _loadTools();
     }
     final RenderBox button = context.findRenderObject() as RenderBox;
@@ -79,7 +80,7 @@ class _InputBarState extends State<InputBar> with TickerProviderStateMixin {
             bottom: overlay.size.height - position.dy + 8,
             child: Material(
               color: Colors.transparent,
-              child: ToolsMenu(
+              child: ToolBox(
                 tools: _tools,
                 isLoading: _toolsLoading,
               ),
@@ -99,23 +100,20 @@ class _InputBarState extends State<InputBar> with TickerProviderStateMixin {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isDarkMode = theme.brightness == Brightness.dark;
-    final inputDecorationTheme = theme.inputDecorationTheme;
+
     final bool _isTextRTL = isRTL(widget.controller.text);
     final bool _hasText = widget.controller.text.trim().isNotEmpty;
 
-    final containerColor = inputDecorationTheme.fillColor ??
-        (isDarkMode ? theme.colorScheme.surfaceContainerHigh : Colors.white);
-    final shadowColor = theme.colorScheme.shadow;
+    final inputBarColor = AppTheme.colors.inputBarColor;
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final textStyle = theme.textTheme.bodyLarge?.copyWith(
-          color: theme.colorScheme.onSurface,
-        );
+        final persianMedium = AppTheme.textStyles.persianMedium;
+        final englishMedium = AppTheme.textStyles.englishMedium;
+
         final textSpan = TextSpan(
           text: widget.controller.text,
-          style: textStyle,
+          style: _isTextRTL ? persianMedium : englishMedium,
         );
         final tp = TextPainter(
           text: textSpan,
@@ -128,11 +126,11 @@ class _InputBarState extends State<InputBar> with TickerProviderStateMixin {
         return Container(
           padding: const EdgeInsets.all(4),
           decoration: BoxDecoration(
-            color: containerColor,
+            color: inputBarColor,
             borderRadius: BorderRadius.circular(28.0),
             boxShadow: [
               BoxShadow(
-                color: shadowColor.withAlpha(isDarkMode ? 128 : 51),
+                color: Colors.black.withAlpha(51),
                 offset: const Offset(0, 6),
                 blurRadius: 16,
                 spreadRadius: 0,
@@ -151,7 +149,7 @@ class _InputBarState extends State<InputBar> with TickerProviderStateMixin {
             children: [
               Builder(
                 builder: (context) => IconButton(
-                  onPressed: () => _showToolsMenu(context),
+                  onPressed: () => _showToolsBox(context),
                   tooltip: 'Tools Box',
                   icon: Icon(
                     Iconsax.setting_4,
@@ -184,15 +182,9 @@ class _InputBarState extends State<InputBar> with TickerProviderStateMixin {
                     minLines: 1,
                     textInputAction: TextInputAction.newline,
                     onSubmitted: null,
-                    style: theme.textTheme.bodyLarge?.copyWith(
-                      color: theme.colorScheme.onSurface,
-                      height: 1.4,
-                      fontFamily: _isTextRTL ? 'Vazir' : 'Nunito',
-                      fontWeight: FontWeight.w700,
-                    ),
+                    style: _isTextRTL ? persianMedium : englishMedium,
                     decoration: InputDecoration(
                       hintText: 'Type a message...',
-                      hintStyle: inputDecorationTheme.hintStyle,
                       border: InputBorder.none,
                       contentPadding: const EdgeInsets.symmetric(
                         horizontal: 16,
@@ -200,8 +192,7 @@ class _InputBarState extends State<InputBar> with TickerProviderStateMixin {
                       ),
                       filled: false,
                     ),
-                    keyboardAppearance:
-                        isDarkMode ? Brightness.dark : Brightness.light,
+                    keyboardAppearance: Brightness.light,
                   ),
                 ),
               ),

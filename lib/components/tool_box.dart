@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:iconsax/iconsax.dart';
+import '/theme.dart';
 
-class ToolsMenu extends StatelessWidget {
+class ToolBox extends StatelessWidget {
   final List<Map<String, dynamic>> tools;
   final bool isLoading;
 
-  const ToolsMenu({
+  const ToolBox({
     Key? key,
     required this.tools,
     required this.isLoading,
@@ -14,15 +15,14 @@ class ToolsMenu extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isDarkMode = theme.brightness == Brightness.dark;
     final screenWidth = MediaQuery.of(context).size.width;
-    final toolboxWidth = screenWidth < 600 ? screenWidth * 0.7 : 400.0;
+    final toolboxWidth = screenWidth < 600 ? screenWidth * 0.6 : 400.0;
 
     return Container(
       width: toolboxWidth,
       constraints: const BoxConstraints(maxHeight: 300),
       decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
+        color: AppTheme.colors.inputBarColor,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
           color: theme.colorScheme.outlineVariant.withAlpha(102),
@@ -30,7 +30,7 @@ class ToolsMenu extends StatelessWidget {
         ),
         boxShadow: [
           BoxShadow(
-            color: theme.colorScheme.shadow.withAlpha(isDarkMode ? 153 : 76),
+            color: theme.colorScheme.shadow.withAlpha(76),
             offset: const Offset(0, 4),
             blurRadius: 16,
             spreadRadius: 0,
@@ -62,23 +62,6 @@ class ToolsMenu extends StatelessWidget {
                 Text(
                   'Tool Box',
                   style: TextStyle(color: theme.colorScheme.primary),
-                ),
-                const Spacer(),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.primaryContainer.withAlpha(128),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    isLoading ? '...' : '${tools.length}',
-                    style: theme.textTheme.labelSmall?.copyWith(
-                      color: theme.colorScheme.primary,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 11,
-                    ),
-                  ),
                 ),
               ],
             ),
@@ -227,6 +210,10 @@ class ToolsMenu extends StatelessWidget {
 
   Widget _buildMcpGroupItem(
       ThemeData theme, String serverName, List<String> serverTools) {
+    const int maxToolsToShow = 4;
+    final displayTools = serverTools.take(maxToolsToShow).toList();
+    final hasMore = serverTools.length > maxToolsToShow;
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       child: Column(
@@ -243,17 +230,33 @@ class ToolsMenu extends StatelessWidget {
                 child: Icon(
                   Iconsax.hierarchy_2,
                   size: 16,
-                  // color: theme.colorScheme.primary,
                 ),
               ),
               const SizedBox(width: 8),
-              Text(
-                serverName,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  fontWeight: FontWeight.w700,
-                  color: theme.colorScheme.onSurface,
-                  fontFamily: 'Nunito',
-                  fontSize: 16,
+              Expanded(
+                child: Text(
+                  serverName,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: theme.colorScheme.onSurface,
+                    fontFamily: 'Nunito',
+                    fontSize: 16,
+                  ),
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.primaryContainer.withAlpha(128),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  '${serverTools.length}',
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: theme.colorScheme.primary,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 11,
+                  ),
                 ),
               ),
             ],
@@ -263,28 +266,52 @@ class ToolsMenu extends StatelessWidget {
             Wrap(
               spacing: 4,
               runSpacing: 4,
-              children: serverTools.map((t) {
-                return Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.secondaryContainer.withAlpha(64),
-                    borderRadius: BorderRadius.circular(4),
-                    border: Border.all(
-                      color: theme.colorScheme.outlineVariant.withAlpha(64),
-                      width: 1,
+              children: [
+                ...displayTools.map((t) {
+                  return Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.secondaryContainer.withAlpha(64),
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border.all(
+                        color: theme.colorScheme.outlineVariant.withAlpha(64),
+                        width: 1,
+                      ),
+                    ),
+                    child: Text(
+                      t,
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  );
+                }),
+                if (hasMore)
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.secondaryContainer.withAlpha(64),
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border.all(
+                        color: theme.colorScheme.outlineVariant.withAlpha(64),
+                        width: 1,
+                      ),
+                    ),
+                    child: Text(
+                      '+${serverTools.length - maxToolsToShow}',
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                        fontStyle: FontStyle.italic,
+                      ),
                     ),
                   ),
-                  child: Text(
-                    t,
-                    style: theme.textTheme.labelSmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                      fontSize: 10,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                );
-              }).toList(),
+              ],
             ),
           ],
         ],

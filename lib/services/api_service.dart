@@ -41,31 +41,42 @@ class ApiService {
   static Stream<Map<String, dynamic>> streamChat({
     required String message,
     String? sessionId,
-    String? systemPrompt,
     bool useLocalAgent = false,
     String? model,
   }) async* {
     await ensureBackendReady();
     final endpoint = useLocalAgent ? '$baseUrl/chat/local' : '$baseUrl/chat';
 
-    final response = await http.post(
-      Uri.parse(endpoint),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({
+    final client = http.Client();
+    final request = http.Request('POST', Uri.parse(endpoint))
+      ..headers['Content-Type'] = 'application/json'
+      ..body = jsonEncode({
         'message': message,
         'session_id': sessionId ?? 'default_session',
-        if (systemPrompt != null) 'system_prompt': systemPrompt,
         if (model != null) 'model': model,
-      }),
-    );
+      });
+
+    final response = await client.send(request);
 
     if (response.statusCode == 200) {
-      final lines = response.body.split('\n');
-      for (var line in lines) {
-        if (line.startsWith('data: ')) {
-          final data = jsonDecode(line.substring(6));
-          yield data;
+      String buffer = '';
+      await for (final chunk in response.stream.transform(utf8.decoder)) {
+        buffer += chunk;
+        final lines = buffer.split('\n');
+        buffer = lines.last;
+
+        for (int i = 0; i < lines.length - 1; i++) {
+          final line = lines[i].trim();
+          if (line.isNotEmpty) {
+            final data = jsonDecode(line);
+            yield data;
+          }
         }
+      }
+
+      if (buffer.trim().isNotEmpty) {
+        final data = jsonDecode(buffer.trim());
+        yield data;
       }
     } else {
       throw Exception('Failed to chat: ${response.statusCode}');
@@ -217,12 +228,16 @@ class ApiService {
 }
 
 void main() async {
-  final sessions = await ApiService.listChatSessions();
-  print(sessions.map((s) => s['name']).toList());
-
-  final deleted = await ApiService.deleteSession('default_session');
-  print(deleted);
-
-  final sessions2 = await ApiService.listChatSessions();
-  print(sessions2.map((s) => s['name']).toList());
+  final sessionId = 'test_5329';
+  final response = ApiService.streamChat(
+      message: 'how is the weather in tokyo tommarow?', sessionId: sessionId);
+  await for (final event in response) {
+    final type = event['type'];
+    final content = event['content'];
+    if (content != null) {
+      print('[$type] $content');
+    } else {
+      print('[$type]');
+    }
+  }
 }

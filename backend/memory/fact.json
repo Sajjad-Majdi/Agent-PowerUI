@@ -19,17 +19,9 @@
             "id": 4,
             "fact": "User lives in Mashhad",
             "timestamp": "2025-09-24T03:35:14.778126"
-        },
-        {
-            "id": 5,
-            "fact": "Sajjad's father's name is Abbas",
-            "timestamp": "2025-10-07T23:40:30.530142"
-        },
-        {
-            "id": 6,
-            "fact": "User is upset",
-            "timestamp": "2025-10-08T00:48:37.110331"
         }
+        
+      
     ],
     "User Preferences": [
         {
@@ -38,4 +30,5 @@
             "timestamp": "2025-09-23T23:34:17.435224"
         }
     ]
+    
 }

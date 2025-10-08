@@ -12,6 +12,20 @@ def list_sessions():
     return response.json()
 
 
+def chat_with_ai(message, session_id='session_1343', use_local=False):
+    """Send a message to the AI and print streaming responses"""
+    endpoint = '/api/chat/local' if use_local else '/api/chat'
+    response = requests.post(
+        f'http://localhost:5000{endpoint}',
+        json={'message': message, 'session_id': session_id},
+        stream=True
+    )
+
+    for line in response.iter_lines():
+        if line:
+            data = line.decode('utf-8')
+            print(data)
+
+
 if __name__ == '__main__':
-    messages = list_sessions()
-    print(len(messages["sessions"]))
+    chat_with_ai("how is the weather in Karaj tommarow?", use_local=False)

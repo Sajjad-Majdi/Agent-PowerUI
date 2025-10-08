@@ -4,63 +4,74 @@ import 'dart:convert';
 class ToolCallBuilder extends StatelessWidget {
   final String toolName;
   final Map<String, dynamic> toolArgs;
+  final String status; // 'in_progress' or 'done'
 
   const ToolCallBuilder({
     super.key,
     required this.toolName,
     required this.toolArgs,
+    this.status = 'done',
   });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final iconData = _getToolIcon(toolName);
     final toolColor = _getToolColor(toolName);
 
     return Container(
-      margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
-      padding: const EdgeInsets.all(12),
+      margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
+      padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
         color: toolColor.withAlpha(25),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: toolColor.withAlpha(100), width: 1.5),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: toolColor.withAlpha(100), width: 1),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(iconData, color: toolColor, size: 20),
-              const SizedBox(width: 8),
+              if (status == 'in_progress')
+                SizedBox(
+                  width: 14,
+                  height: 14,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: toolColor,
+                  ),
+                )
+              else
+                Icon(Icons.check_circle, color: Colors.green, size: 16),
+              const SizedBox(width: 6),
               Text(
                 _formatToolName(toolName),
                 style: TextStyle(
                   fontFamily: 'Nunito',
                   fontWeight: FontWeight.bold,
-                  fontSize: 15,
+                  fontSize: 13,
                   color: toolColor,
                 ),
               ),
             ],
           ),
           if (toolArgs.isNotEmpty) ...[
-            const SizedBox(height: 8),
+            const SizedBox(height: 6),
             Container(
-              padding: const EdgeInsets.all(10),
+              padding: const EdgeInsets.all(6),
               decoration: BoxDecoration(
                 color: theme.colorScheme.onSurface.withAlpha(20),
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(6),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: toolArgs.entries.map((entry) {
                   return Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 2),
+                    padding: const EdgeInsets.symmetric(vertical: 1),
                     child: RichText(
                       text: TextSpan(
                         style: TextStyle(
                           fontFamily: 'FiraCode',
-                          fontSize: 13,
+                          fontSize: 11,
                           color: theme.textTheme.bodyMedium?.color,
                         ),
                         children: [
@@ -89,23 +100,6 @@ class ToolCallBuilder extends StatelessWidget {
         ],
       ),
     );
-  }
-
-  IconData _getToolIcon(String toolName) {
-    final lowerName = toolName.toLowerCase();
-    if (lowerName.contains('search') || lowerName.contains('web')) {
-      return Icons.search_rounded;
-    } else if (lowerName.contains('memory') || lowerName.contains('update')) {
-      return Icons.save_rounded;
-    } else if (lowerName.contains('read') || lowerName.contains('file')) {
-      return Icons.description_rounded;
-    } else if (lowerName.contains('write') || lowerName.contains('create')) {
-      return Icons.edit_rounded;
-    } else if (lowerName.contains('calculate') || lowerName.contains('math')) {
-      return Icons.calculate_rounded;
-    } else {
-      return Icons.build_rounded;
-    }
   }
 
   Color _getToolColor(String toolName) {
@@ -146,4 +140,3 @@ class ToolCallBuilder extends StatelessWidget {
     }
   }
 }
-

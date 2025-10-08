@@ -11,6 +11,7 @@ import '/components/app_bar.dart';
 import '/components/input_bar.dart';
 import '/components/massage_bubble.dart';
 import '/components/sidebar.dart';
+import '/theme.dart';
 import '/services/api_service.dart';
 
 class ChatInterface extends StatefulWidget {
@@ -106,11 +107,7 @@ class _ChatInterfaceState extends State<ChatInterface> {
 
     return Container(
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [Color(0xFF0D1B2A), Color(0xFF1B263B)],
-        ),
+        color: AppTheme.colors.backgroundColor,
         image: DecorationImage(
           image: AssetImage('assets/textures/flowers.png'),
           repeat: ImageRepeat.repeat,
@@ -129,25 +126,24 @@ class _ChatInterfaceState extends State<ChatInterface> {
               child: ConstrainedBox(
                 constraints: BoxConstraints(maxWidth: 1200),
                 child: Scaffold(
-                  extendBodyBehindAppBar: false,
+                  extendBodyBehindAppBar: true,
                   appBar: PreferredSize(
-                    preferredSize: Size.fromHeight(90),
-                    child: StylishAppBar(
-                      title: 'Arya agent',
-                      subtitle: _activeModel ?? 'Loading model…',
-                      geminiModels: _geminiModels,
-                      activeModel: _activeModel,
-                      onSelectModel: (m) => _selectModel(m),
-                      actions: const [],
+                    preferredSize: Size.fromHeight(100),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.only(
+                        bottomLeft: Radius.circular(24),
+                        bottomRight: Radius.circular(24),
+                      ),
+                      child: StylishAppBar(
+                        title: 'G Agent',
+                        geminiModels: _geminiModels,
+                        activeModel: _activeModel,
+                        onSelectModel: (m) => _selectModel(m),
+                      ),
                     ),
                   ),
                   body: Container(
-                    decoration: BoxDecoration(
-                      color: theme.scaffoldBackgroundColor,
-                      boxShadow: [
-                        BoxShadow(color: theme.primaryColor, blurRadius: 20)
-                      ],
-                    ),
+                    color: AppTheme.colors.backgroundColor,
                     padding: EdgeInsets.symmetric(horizontal: 8),
                     child: BlocListener<ChatBloc, ChatState>(
                       listener: (context, state) {
@@ -176,7 +172,7 @@ class _ChatInterfaceState extends State<ChatInterface> {
                                   .copyWith(scrollbars: false),
                               child: ListView.builder(
                                 controller: _scrollController,
-                                padding: EdgeInsets.only(bottom: 300, top: 16),
+                                padding: EdgeInsets.only(bottom: 300, top: 116),
                                 itemCount: state.messages.length,
                                 itemBuilder: (context, index) {
                                   final m = state.messages[index];
@@ -185,6 +181,7 @@ class _ChatInterfaceState extends State<ChatInterface> {
                                     isMe: m.isMe,
                                     isLoading: m.isLoading,
                                     toolCall: m.toolCall,
+                                    toolCallStates: m.toolCallStates,
                                   );
                                 },
                               ),
@@ -238,28 +235,56 @@ class _ChatInterfaceState extends State<ChatInterface> {
               ),
             ),
           ),
-          // Toggle button - moves with drawer state
+          // Vertical segmented button - toggle and new chat
           AnimatedPositioned(
             duration: Duration(milliseconds: 300),
             curve: Curves.easeInOut,
-            left: _isDrawerOpen ? drawerWidth - 48 : 8,
-            top: 15,
+            left: _isDrawerOpen ? drawerWidth - 48 : 5,
+            top: 6,
             child: Material(
               color: (screenWidth < 1200 || _isDrawerOpen)
                   ? Colors.transparent
                   : theme.colorScheme.surface,
-              borderRadius: BorderRadius.circular(20),
+              borderRadius: BorderRadius.circular(12),
               elevation: (screenWidth < 1200 || _isDrawerOpen) ? 0 : 4,
-              child: IconButton(
-                icon: Icon(_isDrawerOpen
-                    ? Iconsax.sidebar_left
-                    : Iconsax.sidebar_right),
-                onPressed: () {
-                  if (!_isDrawerOpen) {
-                    (_sidebarKey.currentState as dynamic)?.refresh();
-                  }
-                  setState(() => _isDrawerOpen = !_isDrawerOpen);
-                },
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    icon: Icon(
+                      _isDrawerOpen
+                          ? Iconsax.sidebar_left
+                          : Iconsax.sidebar_right,
+                      size: 27,
+                    ),
+                    onPressed: () {
+                      if (!_isDrawerOpen) {
+                        (_sidebarKey.currentState as dynamic)?.refresh();
+                      }
+                      setState(() => _isDrawerOpen = !_isDrawerOpen);
+                    },
+                    tooltip: _isDrawerOpen ? 'Close Sidebar' : 'Open Sidebar',
+                  ),
+                  if (!_isDrawerOpen)
+                    Container(
+                      width: 32,
+                      height: 1,
+                      color: theme.colorScheme.outline.withValues(alpha: 0.3),
+                    ),
+                  if (!_isDrawerOpen)
+                    IconButton(
+                      icon: Icon(
+                        Iconsax.add_circle,
+                        color: theme.colorScheme.primary,
+                        size: 30,
+                      ),
+                      onPressed: () {
+                        context.read<ChatBloc>().add(NewChat());
+                        (_sidebarKey.currentState as dynamic)?.refresh();
+                      },
+                      tooltip: 'New Chat',
+                    ),
+                ],
               ),
             ),
           ),
