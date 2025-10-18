@@ -5,6 +5,8 @@ from datetime import datetime
 import json
 from typing import Optional
 from config import Config
+import asyncio
+from mcp_agent import MCPAgent, web_browsing_prompt
 
 
 @tool
@@ -86,5 +88,41 @@ def update_memory(fact: str, category: str, fact_id: Optional[int] = None) -> st
     return "memory updated successfully"
 
 
-if __name__ == "__main__":
-    update_memory("Sajjad is a programmer", "User Information")
+@tool
+def browse_web(query: str) -> str:
+    """
+    Browse the web to accomplish tasks that need actually navigating websites or do tasks online on behalf of the user.
+
+    Args:
+        query (str): The browsing task to accomplish.
+            Examples:
+            - "Open example.com and extract the main content"
+            - "Search Amazon for laptops under $1000"
+            - "Go to zarfilm.com and list the latest sci-fi movies"
+
+    Returns:
+        str: The final response from the browsing agent.
+    """
+    async def run():
+        system_prompt = web_browsing_prompt
+        agent = MCPAgent(
+            mcp_config=Config.get_mcp_servers(),
+            system_prompt=system_prompt
+        )
+        print("------------ agent session ------------")
+        async for response in agent.run_agent(query):
+            # Print progress for debugging
+            print(f"{response['type']}: {response['content'][:100]}...")
+            print("-" * 60)
+
+            # Keep only the final AI response
+            if response['type'] == 'ai':
+                final_response = response['content']
+        print("------------ end of agent session ------------")
+
+        return final_response if final_response else "No response generated."
+
+    try:
+        return asyncio.run(run())
+    except Exception as e:
+        return f"Error: {str(e)}"
