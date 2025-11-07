@@ -83,9 +83,6 @@ class _ChatInterfaceState extends State<ChatInterface> {
       final newModel = await ApiService.setGeminiModel(model);
       if (!mounted) return;
       setState(() => _activeModel = newModel);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Model switched to $newModel')),
-      );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

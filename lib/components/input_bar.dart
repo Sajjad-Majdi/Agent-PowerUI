@@ -48,13 +48,20 @@ class _InputBarState extends State<InputBar> with TickerProviderStateMixin {
 
     for (int attempt = 1; attempt <= maxAttempts; attempt++) {
       try {
+        print('Loading tools... attempt $attempt/$maxAttempts');
         final tools = await ApiService.getTools();
-        setState(() => _tools = tools);
-        break;
+        print('Tools loaded successfully: ${tools.length} tools');
+        setState(() {
+          _tools = tools;
+          _toolsLoading = false;
+        });
+        return;
       } catch (e) {
+        print('Error loading tools (attempt $attempt/$maxAttempts): $e');
         // If last attempt, just log and exit loop
         if (attempt == maxAttempts) {
           print('Error loading tools (final): $e');
+          setState(() => _toolsLoading = false);
           break;
         }
         // Exponential backoff

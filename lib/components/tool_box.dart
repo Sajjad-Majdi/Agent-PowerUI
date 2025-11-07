@@ -20,7 +20,6 @@ class ToolBox extends StatefulWidget {
 }
 
 class _ToolBoxState extends State<ToolBox> {
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -173,7 +172,9 @@ class _ToolBoxState extends State<ToolBox> {
 
   IconData _getToolIcon(String toolName) {
     final lowerName = toolName.toLowerCase();
-    if (lowerName.contains('search') || lowerName.contains('web')) {
+    if (lowerName.contains('file_explorer') || lowerName.contains('explorer')) {
+      return Iconsax.folder;
+    } else if (lowerName.contains('search') || lowerName.contains('web')) {
       return Iconsax.search_normal;
     } else if (lowerName.contains('memory') || lowerName.contains('update')) {
       return Iconsax.save_2;
@@ -218,8 +219,8 @@ class _ToolBoxState extends State<ToolBox> {
     );
   }
 
-  Widget _buildMcpGroupItem(
-      ThemeData theme, String serverName, bool enabled, List<String> serverTools) {
+  Widget _buildMcpGroupItem(ThemeData theme, String serverName, bool enabled,
+      List<String> serverTools) {
     const int maxToolsToShow = 4;
     final displayTools = serverTools.take(maxToolsToShow).toList();
     final hasMore = serverTools.length > maxToolsToShow;
@@ -236,7 +237,8 @@ class _ToolBoxState extends State<ToolBox> {
                 decoration: BoxDecoration(
                   color: enabled
                       ? theme.colorScheme.primaryContainer.withAlpha(128)
-                      : theme.colorScheme.surfaceContainerHighest.withAlpha(128),
+                      : theme.colorScheme.surfaceContainerHighest
+                          .withAlpha(128),
                   borderRadius: BorderRadius.circular(4),
                 ),
                 child: Icon(
@@ -266,7 +268,8 @@ class _ToolBoxState extends State<ToolBox> {
                 decoration: BoxDecoration(
                   color: enabled
                       ? theme.colorScheme.primaryContainer.withAlpha(128)
-                      : theme.colorScheme.surfaceContainerHighest.withAlpha(128),
+                      : theme.colorScheme.surfaceContainerHighest
+                          .withAlpha(128),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
@@ -302,8 +305,10 @@ class _ToolBoxState extends State<ToolBox> {
                   },
                   activeColor: theme.colorScheme.primary,
                   activeTrackColor: theme.colorScheme.primaryContainer,
-                  inactiveThumbColor: theme.colorScheme.onSurfaceVariant.withAlpha(128),
-                  inactiveTrackColor: theme.colorScheme.surfaceContainerHighest.withAlpha(128),
+                  inactiveThumbColor:
+                      theme.colorScheme.onSurfaceVariant.withAlpha(128),
+                  inactiveTrackColor:
+                      theme.colorScheme.surfaceContainerHighest.withAlpha(128),
                 ),
               ),
             ],
@@ -318,10 +323,11 @@ class _ToolBoxState extends State<ToolBox> {
                 children: [
                   ...displayTools.map((t) {
                     return Container(
-                      padding:
-                          const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 6, vertical: 2),
                       decoration: BoxDecoration(
-                        color: theme.colorScheme.secondaryContainer.withAlpha(64),
+                        color:
+                            theme.colorScheme.secondaryContainer.withAlpha(64),
                         borderRadius: BorderRadius.circular(4),
                         border: Border.all(
                           color: theme.colorScheme.outlineVariant.withAlpha(64),
@@ -340,10 +346,11 @@ class _ToolBoxState extends State<ToolBox> {
                   }),
                   if (hasMore)
                     Container(
-                      padding:
-                          const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 6, vertical: 2),
                       decoration: BoxDecoration(
-                        color: theme.colorScheme.secondaryContainer.withAlpha(64),
+                        color:
+                            theme.colorScheme.secondaryContainer.withAlpha(64),
                         borderRadius: BorderRadius.circular(4),
                         border: Border.all(
                           color: theme.colorScheme.outlineVariant.withAlpha(64),

@@ -7,8 +7,8 @@
         },
         {
             "id": 2,
-            "fact": "Sajjad lives in Iran",
-            "timestamp": "2025-09-23T23:33:09.191832"
+            "fact": "User's local file structure with paths: D:\\Games, D:\\Installer, E:\\Courses, E:\\MyMovies, E:\\MyPicturs, E:\\Personal, E:\\Softwares, E:\\University. Specific important subfolders and files noted include: E:\\Courses\\Andrew ng - Deep learning - Full Specialization, E:\\Courses\\Udemy - 2025 Master Langchain and Ollama - Chatbot, RAG and Agents 2024-11, E:\\MyMovies\\\u0641\u06cc\u0644\u0645 \u0633\u06cc\u0646\u0645\u0627\u06cc\u06cc, E:\\Personal\\flutter, E:\\Softwares\\python-3.13.0-amd64.exe, E:\\Softwares\\VSCodeUserSetup-x64-1.94.2.exe, E:\\Softwares\\OllamaSetup.exe, E:\\University\\CAD, E:\\University\\Silberschatz (10ed).pdf, E:\\University\\Stallings (9ed).pdf.",
+            "timestamp": "2025-11-08T02:21:22.545979"
         },
         {
             "id": 3,
@@ -26,13 +26,6 @@
             "id": 1,
             "fact": "User prefers short, concise answers. Never be talkative.",
             "timestamp": "2025-09-23T23:34:17.435224"
-        }
-    ],
-    "Interaction Patterns": [
-        {
-            "id": 1,
-            "fact": "User repeatedly says \"hi\" without further prompts. I should proactively ask how I can help or if they have a specific question to guide the conversation.",
-            "timestamp": "2025-11-08T00:07:00.499470"
         }
     ]
 }

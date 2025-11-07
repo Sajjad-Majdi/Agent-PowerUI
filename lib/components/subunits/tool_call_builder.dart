@@ -173,7 +173,9 @@ class ToolCallBuilder extends StatelessWidget {
 
   Color _getToolColor(String toolName) {
     final lowerName = toolName.toLowerCase();
-    if (lowerName.contains('search') || lowerName.contains('web')) {
+    if (lowerName.contains('file_explorer') || lowerName.contains('explorer')) {
+      return Colors.indigo;
+    } else if (lowerName.contains('search') || lowerName.contains('web')) {
       return Colors.blue;
     } else if (lowerName.contains('memory') || lowerName.contains('update')) {
       return Colors.purple;

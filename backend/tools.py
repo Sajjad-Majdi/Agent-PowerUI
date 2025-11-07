@@ -169,3 +169,222 @@ def browse_web(query: str) -> str:
         import traceback
         traceback.print_exc()
         return f"Error: {str(e)}"
+
+
+@tool
+def file_explorer_tool(action: str, arg1: str = "", arg2: str = "") -> str:
+    """
+    Tool for interacting with local file system - navigate, list, rename, move, copy, delete files and folders.
+
+    Note:
+        - If no path is provided with "list" action, available drives will be shown on Windows systems.
+        - Use drive letters to navigate (e.g., "C:\\", "D:\\").
+        - Always call "list" first to see available drives before navigating.
+        - Avoid modifying system-critical directories (e.g., C:\\Windows, C:\\Program Files and everything inside drive C).
+        - Use search action to search for files and folders by name (e.g., "action: search, arg1: MyMovies").
+    Args:
+        action: Operation to perform (list, rename, move, copy, delete, create_folder, search, tree)
+        arg1: Primary argument (path for most operations, query for search)
+        arg2: Secondary argument (new_name for rename, destination for move/copy)
+    """
+    import os
+    import shutil
+    import json
+    from pathlib import Path
+    try:
+        if action == "list":
+            # If no path provided, show available drives on Windows
+            if not arg1:
+                if os.name == 'nt':  # Windows
+                    try:
+                        import subprocess
+                        result = subprocess.run(
+                            ['powershell', '-Command',
+                                'Get-PSDrive -PSProvider FileSystem | Select-Object Name, Root, @{Name="Used(GB)";Expression={[math]::Round($_.Used/1GB,2)}}, @{Name="Free(GB)";Expression={[math]::Round($_.Free/1GB,2)}} | Format-Table -AutoSize'],
+                            capture_output=True,
+                            text=True,
+                            timeout=5
+                        )
+                        if result.returncode == 0:
+                            return f"Available drives:\n\n{result.stdout}\n\nUse 'list' with a drive path (e.g., 'C:\\') to explore contents."
+                    except Exception as e:
+                        pass
+                # Fallback to current directory if not Windows or command fails
+                target = Path.cwd()
+            else:
+                target = Path(arg1)
+
+            if not target.exists():
+                return f"Error: Path does not exist: {arg1}"
+
+            items = []
+            for item in target.iterdir():
+                item_type = "folder" if item.is_dir() else "file"
+                size_info = f" ({item.stat().st_size} bytes)" if item.is_file(
+                ) else ""
+                size_mb = f" ({item.stat().st_size / (1024 * 1024):.2f} MB)" if item.is_file() else ""
+                items.append(f"  - {item.name} [{item_type}]{size_mb}")
+
+            result = f"Current path: {target.absolute()}\n\nContents:\n" + \
+                "\n".join(items)
+            return result
+
+        elif action == "rename":
+            source = Path(arg1)
+            if not source.exists():
+                return f"Error: Path does not exist: {arg1}"
+            target = source.parent / arg2
+            source.rename(target)
+            return f"Success: Renamed to {target.absolute()}"
+
+        elif action == "move":
+            source = Path(arg1)
+            dest = Path(arg2)
+            if not source.exists():
+                return f"Error: Source does not exist: {arg1}"
+            shutil.move(str(source), str(dest))
+            return f"Success: Moved to {dest}"
+
+        elif action == "copy":
+            source = Path(arg1)
+            dest = Path(arg2)
+            if not source.exists():
+                return f"Error: Source does not exist: {arg1}"
+            if source.is_dir():
+                shutil.copytree(str(source), str(dest))
+            else:
+                shutil.copy2(str(source), str(dest))
+            return f"Success: Copied to {dest}"
+
+        elif action == "delete":
+            target = Path(arg1)
+            if not target.exists():
+                return f"Error: Path does not exist: {arg1}"
+            if target.is_dir():
+                shutil.rmtree(str(target))
+            else:
+                target.unlink()
+            return f"Success: Deleted {target.absolute()}"
+
+        elif action == "create_folder":
+            target = Path(arg1)
+            target.mkdir(parents=True, exist_ok=True)
+            return f"Success: Created folder at {target.absolute()}"
+
+        elif action == "search":
+            search_query = arg1
+            results = []
+
+            # Search all drives on Windows except C:, or root on Unix-like systems
+            if os.name == 'nt':  # Windows
+                import subprocess
+                try:
+                    # Get all available drives
+                    drive_result = subprocess.run(
+                        ['powershell', '-Command',
+                            'Get-PSDrive -PSProvider FileSystem | Select-Object -ExpandProperty Root'],
+                        capture_output=True,
+                        text=True,
+                        timeout=5
+                    )
+                    drives = [d.strip() for d in drive_result.stdout.strip().split(
+                        '\n') if d.strip() and not d.strip().upper().startswith('C:')]
+                except Exception:
+                    drives = [f"{chr(d)}:\\" for d in range(
+                        65, 91) if d != 67 and Path(f"{chr(d)}:\\").exists()]
+
+                for drive in drives:
+                    try:
+                        drive_path = Path(drive)
+                        if drive_path.exists():
+                            for item in drive_path.rglob(f"*{search_query}*"):
+                                item_type = "folder" if item.is_dir() else "file"
+                                results.append(
+                                    f"  - {item.name} [{item_type}] at {item.absolute()}")
+                    except (PermissionError, OSError):
+                        continue
+            else:
+                # Unix-like systems: search from root
+                try:
+                    root = Path('/')
+                    for item in root.rglob(f"*{search_query}*"):
+                        item_type = "folder" if item.is_dir() else "file"
+                        results.append(
+                            f"  - {item.name} [{item_type}] at {item.absolute()}")
+                except (PermissionError, OSError):
+                    pass
+
+            if not results:
+                return f"Search query '{search_query}' found no results in the system"
+
+            return f"Search query '{search_query}' found {len(results)} result(s):\n" + "\n".join(results)
+
+        elif action == "tree":
+            target = Path(arg1) if arg1 else Path.cwd()
+            if not target.exists():
+                return f"Error: Path does not exist: {arg1}"
+
+            def build_tree(directory: Path, max_depth: int = 3, current_depth: int = 0, prefix: str = ""):
+                if current_depth >= max_depth:
+                    return []
+
+                lines = []
+                try:
+                    items = sorted(directory.iterdir())
+                    for i, item in enumerate(items):
+                        is_last = i == len(items) - 1
+                        connector = "└── " if is_last else "├── "
+                        item_type = "[folder]" if item.is_dir() else "[file]"
+                        lines.append(
+                            f"{prefix}{connector}{item.name} {item_type}")
+
+                        if item.is_dir():
+                            extension = "    " if is_last else "│   "
+                            subtree = build_tree(
+                                item, max_depth, current_depth + 1, prefix + extension)
+                            lines.extend(subtree)
+                except PermissionError:
+                    lines.append(f"{prefix}[Permission denied]")
+
+                return lines
+
+            tree_lines = [f"Tree structure of {target.absolute()}:"]
+            tree_lines.extend(build_tree(target))
+            return "\n".join(tree_lines)
+
+        else:
+            return f"Error: Unknown action: {action}"
+
+    except Exception as e:
+        return f"Error: {str(e)}"
+
+
+if __name__ == "__main__":
+    # Test 1: List current directory
+    # print("Test 1: List current directory")
+    # res = file_explorer_tool("list")
+    # print(res)
+    # print("=====================================")
+
+    # Test 2: Search for Python files
+    # print("Test 2: Search for .py files")
+    # res = file_explorer_tool("search", "MyMovies")
+    # print(res)
+    # print("=====================================")
+
+    # Test 3: Tree structure
+    # print("Test 3: Tree structure")
+    # res = file_explorer_tool("tree", "D:/")
+    # print(res)
+    # print("=====================================")
+
+    # Test 4: Invalid action
+    print("Test 4: Invalid action")
+    res = file_explorer_tool("invalid_action")
+    print(res)
+    print("=====================================")
+
+    # Test 5: Non-existent path
+    print("Test 5: Non-existent path")
+    res = file_explorer_tool("list", "/nonexistent/path")
+    print(res)

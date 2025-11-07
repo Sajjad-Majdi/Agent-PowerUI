@@ -101,9 +101,9 @@ class Config:
 
     @staticmethod
     def get_default_tools():
-        from tools import search_web, update_memory, browse_web
+        from tools import search_web, update_memory, browse_web, file_explorer_tool
 
-        tools = [search_web, update_memory]
+        tools = [search_web, update_memory, file_explorer_tool]
 
         # Add browse_web tool only if MCP servers are enabled
         enabled_servers = Config.get_enabled_mcp_servers()
