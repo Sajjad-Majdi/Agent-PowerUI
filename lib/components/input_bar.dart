@@ -9,9 +9,16 @@ import '/theme.dart';
 class InputBar extends StatefulWidget {
   final TextEditingController controller;
   final VoidCallback onSend;
+  final VoidCallback onStop;
+  final bool isStreaming;
 
-  const InputBar({Key? key, required this.controller, required this.onSend})
-      : super(key: key);
+  const InputBar({
+    Key? key,
+    required this.controller,
+    required this.onSend,
+    required this.onStop,
+    required this.isStreaming,
+  }) : super(key: key);
 
   @override
   State<InputBar> createState() => _InputBarState();
@@ -104,6 +111,7 @@ class _InputBarState extends State<InputBar> with TickerProviderStateMixin {
 
     final bool _isTextRTL = isRTL(widget.controller.text);
     final bool _hasText = widget.controller.text.trim().isNotEmpty;
+    final bool _showAction = widget.isStreaming || _hasText;
 
     final inputBarColor = AppTheme.colors.inputBarColor;
 
@@ -164,7 +172,8 @@ class _InputBarState extends State<InputBar> with TickerProviderStateMixin {
                   focusNode: _focusNode,
                   onKeyEvent: (node, event) {
                     if (event.logicalKey == LogicalKeyboardKey.enter) {
-                      if (HardwareKeyboard.instance.isShiftPressed) {
+                      if (HardwareKeyboard.instance.isShiftPressed ||
+                          widget.isStreaming) {
                         return KeyEventResult.ignored;
                       }
                       widget.onSend();
@@ -198,7 +207,7 @@ class _InputBarState extends State<InputBar> with TickerProviderStateMixin {
                 ),
               ),
               AnimatedScale(
-                scale: _hasText ? 1.0 : 0.0,
+                scale: _showAction ? 1.0 : 0.0,
                 duration: const Duration(milliseconds: 500),
                 curve: Curves.elasticOut,
                 child: MouseRegion(
@@ -206,22 +215,28 @@ class _InputBarState extends State<InputBar> with TickerProviderStateMixin {
                   onEnter: (_) => setState(() => _isHovering = true),
                   onExit: (_) => setState(() => _isHovering = false),
                   child: GestureDetector(
-                    onTap: widget.onSend,
+                    onTap: widget.isStreaming ? widget.onStop : widget.onSend,
                     child: Container(
                       margin: EdgeInsets.only(
                         left: 3,
                         right: 3,
                         bottom: isExpanded ? 2 : 0,
                       ),
-                      padding: const EdgeInsets.all(12),
+                      padding: EdgeInsets.all(widget.isStreaming ? 9 : 12),
                       decoration: BoxDecoration(
-                        color: _isHovering
-                            ? theme.colorScheme.primary.withAlpha(190)
-                            : theme.colorScheme.primary,
+                        color: widget.isStreaming
+                            ? (_isHovering
+                                ? Colors.red.withAlpha(50)
+                                : Colors.red.withAlpha(76))
+                            : (_isHovering
+                                ? theme.colorScheme.primary.withAlpha(190)
+                                : theme.colorScheme.primary),
                         shape: BoxShape.circle,
                         boxShadow: [
                           BoxShadow(
-                            color: theme.colorScheme.primary.withAlpha(76),
+                            color: widget.isStreaming
+                                ? Colors.transparent
+                                : theme.colorScheme.primary.withAlpha(76),
                             offset: const Offset(0, 2),
                             blurRadius: 8,
                             spreadRadius: 0,
@@ -229,9 +244,11 @@ class _InputBarState extends State<InputBar> with TickerProviderStateMixin {
                         ],
                       ),
                       child: Icon(
-                        Icons.send_rounded,
-                        color: theme.colorScheme.onPrimary,
-                        size: 20,
+                        widget.isStreaming ? Iconsax.stop : Icons.send_rounded,
+                        color: widget.isStreaming
+                            ? Colors.red.shade400
+                            : theme.colorScheme.onPrimary,
+                        size: widget.isStreaming ? 25 : 20,
                       ),
                     ),
                   ),

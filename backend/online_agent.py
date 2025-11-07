@@ -4,6 +4,8 @@ from langgraph.prebuilt import create_react_agent
 import sqlite3
 import os
 import warnings
+import threading
+from typing import Optional
 from config import Config
 from checkpoint import AsyncCompatibleSqliteSaver
 os.environ['GRPC_VERBOSITY'] = 'NONE'
@@ -41,7 +43,12 @@ class OnlineAgent:
             self.llm, self.tools, checkpointer=self.checkpointer, prompt=self.system_prompt)
         print(f"Agent updated with {len(tools)} tools")
 
-    def send_message(self, message: str, session_id: str = "default_session"):
+    def send_message(
+        self,
+        message: str,
+        session_id: str = "default_session",
+        cancel_event: Optional[threading.Event] = None,
+    ):
         """Send message to agent and stream response"""
         if not self.agent:
             raise RuntimeError(
@@ -50,13 +57,20 @@ class OnlineAgent:
         session_config = {"configurable": {"thread_id": session_id}}
 
         # Attach session_id to current thread for browse_web to access
-        import threading
         threading.current_thread().session_id = session_id
+        if cancel_event is not None:
+            threading.current_thread().cancel_event = cancel_event
 
-        for step in self.agent.stream({"messages": [
-                {"role": "user", "content": message}]}, config=session_config, stream_mode="values"):
-            last_message = step["messages"][-1]
-            yield last_message
+        try:
+            for step in self.agent.stream({"messages": [
+                    {"role": "user", "content": message}]}, config=session_config, stream_mode="values"):
+                if cancel_event is not None and cancel_event.is_set():
+                    break
+                last_message = step["messages"][-1]
+                yield last_message
+        finally:
+            if hasattr(threading.current_thread(), 'cancel_event'):
+                delattr(threading.current_thread(), 'cancel_event')
 
 
 if __name__ == "__main__":

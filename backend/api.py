@@ -31,6 +31,8 @@ available_tools = Config.get_default_tools()
 
 # Global queue for MCP progress streaming
 mcp_progress_queues = {}
+# Cancellation events per session
+session_cancel_events = {}
 
 
 @app.route('/api/chat', methods=['POST'])
@@ -49,14 +51,26 @@ def chat():
     try:
         progress_queue = queue_module.Queue()
         mcp_progress_queues[session_id] = progress_queue
+        cancel_event = threading.Event()
+        session_cancel_events[session_id] = cancel_event
 
         def generate_response():
             import time
             try:
-                agent_iter = online_agent.send_message(message, session_id)
+                agent_iter = online_agent.send_message(
+                    message, session_id, cancel_event=cancel_event)
+                threading.current_thread().cancel_event = cancel_event
                 agent_done = False
 
                 while not agent_done:
+                    if cancel_event.is_set():
+                        try:
+                            agent_iter.close()
+                        except Exception:
+                            pass
+                        yield json.dumps({'type': 'cancelled'}) + '\n'
+                        return
+
                     # Try to get next agent message (non-blocking check)
                     try:
                         last_message = next(agent_iter)
@@ -100,6 +114,10 @@ def chat():
             finally:
                 if session_id in mcp_progress_queues:
                     del mcp_progress_queues[session_id]
+                if session_id in session_cancel_events:
+                    del session_cancel_events[session_id]
+                if hasattr(threading.current_thread(), 'cancel_event'):
+                    delattr(threading.current_thread(), 'cancel_event')
 
         return Response(generate_response(), mimetype='application/x-ndjson')
 
@@ -151,6 +169,28 @@ def chat_local():
 
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/chat/stop', methods=['POST'])
+def stop_chat():
+    """Signal cancellation for a running chat session"""
+    data = request.json or {}
+    session_id = data.get('session_id') or 'default_session'
+
+    event = session_cancel_events.get(session_id)
+    if event is None:
+        return jsonify({'status': 'idle'})
+
+    event.set()
+    # Clear MCP progress queue entry if present to unblock producers
+    progress_queue = mcp_progress_queues.get(session_id)
+    if progress_queue is not None:
+        try:
+            progress_queue.put_nowait({'type': 'cancelled'})
+        except queue_module.Full:
+            pass
+
+    return jsonify({'status': 'stopping'})
 
 
 @app.route('/api/initialize_local_agent', methods=['POST'])

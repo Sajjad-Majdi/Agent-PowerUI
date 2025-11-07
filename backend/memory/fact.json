@@ -20,8 +20,6 @@
             "fact": "User lives in Mashhad",
             "timestamp": "2025-09-24T03:35:14.778126"
         }
-        
-      
     ],
     "User Preferences": [
         {
@@ -29,6 +27,12 @@
             "fact": "User prefers short, concise answers. Never be talkative.",
             "timestamp": "2025-09-23T23:34:17.435224"
         }
+    ],
+    "Interaction Patterns": [
+        {
+            "id": 1,
+            "fact": "User repeatedly says \"hi\" without further prompts. I should proactively ask how I can help or if they have a specific question to guide the conversation.",
+            "timestamp": "2025-11-08T00:07:00.499470"
+        }
     ]
-    
 }

@@ -50,7 +50,9 @@ class _ChatInterfaceState extends State<ChatInterface> {
   void _send() {
     final prompt = controller.text.trim();
     if (prompt.isEmpty) return;
-    context.read<ChatBloc>().add(SendMessage(prompt));
+    final bloc = context.read<ChatBloc>();
+    if (bloc.state.isStreaming) return;
+    bloc.add(SendMessage(prompt));
     controller.clear();
   }
 
@@ -198,6 +200,10 @@ class _ChatInterfaceState extends State<ChatInterface> {
                                   child: InputBar(
                                     controller: controller,
                                     onSend: _send,
+                                    onStop: () => context.read<ChatBloc>().add(
+                                          StopStreaming(),
+                                        ),
+                                    isStreaming: state.isStreaming,
                                   ),
                                 ),
                               ),

@@ -16,4 +16,6 @@ class LoadSession extends ChatEvent {
   LoadSession(this.sessionId);
 }
 
+class StopStreaming extends ChatEvent {}
+
 class NewChat extends ChatEvent {}

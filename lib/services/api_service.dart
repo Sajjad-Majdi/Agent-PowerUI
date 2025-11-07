@@ -83,6 +83,18 @@ class ApiService {
     }
   }
 
+  static Future<void> cancelChat({String? sessionId}) async {
+    await ensureBackendReady();
+    final response = await http.post(
+      Uri.parse('$baseUrl/chat/stop'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'session_id': sessionId ?? 'default_session'}),
+    );
+    if (response.statusCode != 200) {
+      throw Exception('Failed to cancel chat: ${response.statusCode}');
+    }
+  }
+
   static Future<List<Map<String, dynamic>>> getTools() async {
     await ensureBackendReady();
     final response = await http.get(Uri.parse('$baseUrl/tools'));

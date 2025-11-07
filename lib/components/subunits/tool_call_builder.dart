@@ -48,6 +48,8 @@ class ToolCallBuilder extends StatelessWidget {
                     color: toolColor,
                   ),
                 )
+              else if (status == 'error' || status == 'cancelled')
+                Icon(Icons.cancel, color: Colors.red, size: 16)
               else
                 Icon(Icons.check_circle, color: Colors.green, size: 16),
               const SizedBox(width: 6),

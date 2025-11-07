@@ -122,6 +122,7 @@ def browse_web(query: str) -> str:
 
         # Try to get progress queue from API global state
         progress_queue = None
+        cancel_event = None
         try:
             from api import mcp_progress_queues
             import threading
@@ -129,25 +130,33 @@ def browse_web(query: str) -> str:
                 threading.current_thread(), 'session_id', None)
             if session_id and session_id in mcp_progress_queues:
                 progress_queue = mcp_progress_queues[session_id]
+            cancel_event = getattr(
+                threading.current_thread(), 'cancel_event', None)
         except Exception:
             pass
 
-        async for response in agent.run_agent(query):
-            tracker = update_mcp_progress(tracker, response)
+        try:
+            async for response in agent.run_agent(query):
+                if cancel_event is not None and cancel_event.is_set():
+                    raise asyncio.CancelledError()
 
-            # Stream incremental progress if queue available
-            if progress_queue is not None and response.get('type') in ['tool_call', 'tool_message']:
-                step_event = {
-                    'type': 'mcp_progress',
-                    'content': {
-                        'steps': tracker['steps'],
-                        'current_tool': tracker.get('current_tool')
+                tracker = update_mcp_progress(tracker, response)
+
+                # Stream incremental progress if queue available
+                if progress_queue is not None and response.get('type') in ['tool_call', 'tool_message']:
+                    step_event = {
+                        'type': 'mcp_progress',
+                        'content': {
+                            'steps': tracker['steps'],
+                            'current_tool': tracker.get('current_tool')
+                        }
                     }
-                }
-                try:
-                    progress_queue.put_nowait(step_event)
-                except Exception:
-                    pass
+                    try:
+                        progress_queue.put_nowait(step_event)
+                    except Exception:
+                        pass
+        except asyncio.CancelledError:
+            return json.dumps({'status': 'cancelled', 'result': 'Cancelled by user'})
 
         print("------------ end of agent session ------------")
 
