@@ -9,12 +9,12 @@ from local_agent import LocalAgent
 
 
 def _list_session_ids():
-    """Internal: list unique thread_ids from LangGraph checkpoints table."""
+    """Internal: list unique thread_ids from LangGraph checkpoints table, ordered by most recent first."""
     db_path = Config.db_path
     with sqlite3.connect(db_path, check_same_thread=False) as conn:
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT DISTINCT thread_id FROM checkpoints ORDER BY thread_id")
+            "SELECT thread_id FROM checkpoints GROUP BY thread_id ORDER BY MAX(checkpoint_id) DESC")
         sessions = cursor.fetchall()
         return [session[0] for session in sessions]
 
@@ -96,15 +96,25 @@ def get_session_messages(session_id, agent_instance=None):
                 msg_type = msg.type if hasattr(msg, 'type') else 'unknown'
                 content = msg.content if hasattr(msg, 'content') else ''
 
-                # Skip system messages, tool messages, and empty content
-                if msg_type == 'system':
+                # Skip system messages and tool messages
+                if msg_type == 'system' or msg_type == 'tool':
                     continue
 
-                formatted_messages.append({
-                    'type': msg_type,
-                    'content': str(content),
-                    'is_user': msg_type == 'human'
-                })
+                # Check if this AI message has tool calls
+                if msg_type == 'ai' and hasattr(msg, 'tool_calls') and msg.tool_calls:
+                    # Include tool calls in the content
+                    formatted_messages.append({
+                        'type': msg_type,
+                        'content': str(content),
+                        'is_user': False,
+                        'tool_calls': msg.tool_calls
+                    })
+                else:
+                    formatted_messages.append({
+                        'type': msg_type,
+                        'content': str(content),
+                        'is_user': msg_type == 'human'
+                    })
 
         return formatted_messages
     except Exception:

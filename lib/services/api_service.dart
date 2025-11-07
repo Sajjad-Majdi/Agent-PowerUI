@@ -187,6 +187,37 @@ class ApiService {
       final data = jsonDecode(response.body);
       final messages = data['messages'] as List;
       return messages.map((msg) {
+        final toolCalls = msg['tool_calls'] as List?;
+
+        // If this message has tool calls, reconstruct the format with placeholders
+        if (toolCalls != null && toolCalls.isNotEmpty) {
+          final toolCallStates = <String, ToolCallState>{};
+          String contentWithPlaceholders = msg['content'] ?? '';
+
+          for (final toolCall in toolCalls) {
+            final toolId = toolCall['id'] ?? '';
+            final toolName = toolCall['name'] ?? 'Unknown Tool';
+            final toolArgs = Map<String, dynamic>.from(toolCall['args'] ?? {});
+
+            // Add placeholder to content
+            contentWithPlaceholders += '<tool_call id="$toolId"></tool_call>';
+
+            // Create tool call state
+            toolCallStates[toolId] = ToolCallState(
+              toolName: toolName,
+              toolArgs: toolArgs,
+              status: 'done',
+              steps: const <ToolStepState>[],
+            );
+          }
+
+          return ChatMessage(
+            text: contentWithPlaceholders,
+            isMe: false,
+            toolCallStates: toolCallStates,
+          );
+        }
+
         return ChatMessage(
           text: msg['content'] ?? '',
           isMe: msg['is_user'] == true,
