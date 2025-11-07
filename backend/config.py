@@ -22,6 +22,41 @@ class Config:
     db_path = os.path.join(backend_directory, 'data', 'chat_storage.db')
 
     memory_path = os.path.join(backend_directory, 'memory', 'fact.json')
+    mcp_state_path = os.path.join(
+        backend_directory, 'memory', 'mcp_state.json')
+
+    @staticmethod
+    def get_mcp_state():
+        """Get the current state of MCP tools (enabled/disabled per server)"""
+        try:
+            if not os.path.exists(Config.mcp_state_path):
+                # Create default state with all tools enabled
+                mcp_servers = Config.get_mcp_servers()
+                default_state = {server: True for server in mcp_servers.keys()}
+                Config.set_mcp_state(default_state)
+                return default_state
+
+            with open(Config.mcp_state_path, 'r') as f:
+                return json.load(f)
+        except Exception:
+            return {}
+
+    @staticmethod
+    def set_mcp_state(state: dict):
+        """Set the state of MCP tools (enabled/disabled per server)"""
+        try:
+            os.makedirs(os.path.dirname(Config.mcp_state_path), exist_ok=True)
+            with open(Config.mcp_state_path, 'w') as f:
+                json.dump(state, f, indent=2)
+        except Exception as e:
+            print(f"Error saving MCP state: {e}")
+
+    @staticmethod
+    def get_enabled_mcp_servers():
+        """Get only the MCP servers that are currently enabled"""
+        all_servers = Config.get_mcp_servers()
+        state = Config.get_mcp_state()
+        return {name: config for name, config in all_servers.items() if state.get(name, True)}
 
     @staticmethod
     def get_system_prompt():
@@ -66,9 +101,20 @@ class Config:
 
     @staticmethod
     def get_default_tools():
-        from tools import search_web, update_memory
+        from tools import search_web, update_memory, browse_web
 
-        return [search_web, update_memory]
+        tools = [search_web, update_memory]
+
+        # Add browse_web tool only if MCP servers are enabled
+        enabled_servers = Config.get_enabled_mcp_servers()
+        if enabled_servers:
+            tools.append(browse_web)
+            print(
+                f"browse_web tool added (MCP servers enabled: {list(enabled_servers.keys())})")
+        else:
+            print("browse_web tool not added (no MCP servers enabled)")
+
+        return tools
 
     @staticmethod
     def get_mcp_servers():

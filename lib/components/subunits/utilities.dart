@@ -32,13 +32,54 @@ class ChatMessage {
 class ToolCallState {
   final String toolName;
   final Map<String, dynamic> toolArgs;
-  final String status; // 'in_progress' or 'done'
+  final String status; // 'in_progress', 'done', 'error'
+  final List<ToolStepState> steps;
+  final String? currentTool;
+  final String? resultText;
 
   ToolCallState({
     required this.toolName,
     required this.toolArgs,
     required this.status,
+    this.steps = const <ToolStepState>[],
+    this.currentTool,
+    this.resultText,
   });
+}
+
+class ToolStepState {
+  final String id;
+  final String name;
+  final String status; // 'in_progress', 'completed', 'error'
+  final Map<String, dynamic> args;
+  final List<String> outputs;
+
+  ToolStepState({
+    required this.id,
+    required this.name,
+    required this.status,
+    Map<String, dynamic>? args,
+    List<String>? outputs,
+  })  : args = args ?? const <String, dynamic>{},
+        outputs = outputs ?? const <String>[];
+
+  factory ToolStepState.fromMap(Map<String, dynamic> data) {
+    final outputs = <String>[];
+    final rawOutputs = data['outputs'];
+    if (rawOutputs is List) {
+      for (final item in rawOutputs) {
+        outputs.add(item.toString());
+      }
+    }
+
+    return ToolStepState(
+      id: data['id']?.toString() ?? '',
+      name: data['name']?.toString() ?? 'Step',
+      status: data['status']?.toString() ?? 'completed',
+      args: Map<String, dynamic>.from(data['args'] ?? {}),
+      outputs: outputs,
+    );
+  }
 }
 
 // ------------------------------- Message Segment Model -----------------------

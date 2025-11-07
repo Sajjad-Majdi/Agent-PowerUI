@@ -1,6 +1,7 @@
 import json
 import os
 import sqlite3
+from typing import Any, Dict, List, Optional
 
 from config import Config
 from online_agent import OnlineAgent
@@ -79,7 +80,6 @@ def get_session_messages(session_id, agent_instance=None):
     if agent_instance is None:
         agent = OnlineAgent(model="gemini-2.5-flash",
                             tools=Config.get_default_tools())
-        agent.initialize_agent()
         graph_agent = agent.agent
     else:
         graph_agent = agent_instance.agent if hasattr(
@@ -131,19 +131,13 @@ async def initialize_online_agent():
     global online_agent, available_tools
 
     try:
-        mcp_servers = Config.get_mcp_servers()
-        tools = Config.get_default_tools()
+        available_tools = Config.get_default_tools()
         online_agent = OnlineAgent(
-            model=Config.DEFAULT_GEMINI_MODEL, tools=tools)
+            model=Config.DEFAULT_GEMINI_MODEL, tools=available_tools)
 
-        if mcp_servers and len(mcp_servers) > 0:
-            await online_agent.initialize_agent_with_mcp(mcp_servers)
-        else:
-            online_agent.initialize_agent()
-
-        available_tools = tools
         return online_agent
-    except Exception:
+    except Exception as e:
+        print(f"Error initializing online agent: {e}")
         return None
 
 
@@ -159,6 +153,141 @@ def initialize_local_agent():
         return True
     except Exception:
         return False
+
+
+def create_mcp_progress_tracker() -> Dict[str, Any]:
+    """Return a fresh state container for MCP progress tracking."""
+    return {
+        "steps": [],
+        "step_lookup": {},
+        "current_tool": None,
+        "final_result": None,
+        "error": None,
+        "last_message": None,
+    }
+
+
+def update_mcp_progress(tracker: Optional[Dict[str, Any]], event: Dict[str, Any]) -> Dict[str, Any]:
+    """Consume a single MCP agent event and update the progress tracker."""
+    if tracker is None:
+        tracker = create_mcp_progress_tracker()
+
+    if not event:
+        return tracker
+
+    event_type = event.get("type")
+    content = event.get("content")
+
+    if event_type == "tool_call":
+        calls = content if isinstance(content, list) else [content]
+        if calls is None:
+            return tracker
+
+        for call in calls:
+            if not isinstance(call, dict):
+                continue
+            step_id = call.get("id") or f"step_{len(tracker['steps']) + 1}"
+            step = {
+                "id": step_id,
+                "name": call.get("name") or "tool",
+                "status": "in_progress",
+                "args": call.get("args", {}),
+                "outputs": [],
+            }
+            tracker["step_lookup"][step_id] = step
+            tracker["steps"].append(step)
+            tracker["current_tool"] = step["name"]
+
+    elif event_type == "tool_message":
+        if isinstance(content, dict):
+            step_id = content.get("tool_call_id")
+            message_text = content.get("message")
+            if step_id and step_id in tracker["step_lookup"]:
+                step = tracker["step_lookup"][step_id]
+                step["status"] = "completed"
+                if message_text:
+                    trimmed = message_text.strip()
+                    if len(trimmed) > 800:
+                        trimmed = trimmed[:800] + "..."
+                    step.setdefault("outputs", []).append(trimmed)
+                    tracker["last_message"] = trimmed
+                tracker["current_tool"] = None
+            elif message_text:
+                tracker["last_message"] = message_text
+
+    elif event_type == "ai":
+        tracker["final_result"] = content
+
+    elif event_type == "error":
+        tracker["error"] = content
+        tracker["current_tool"] = None
+
+    return tracker
+
+
+def build_mcp_progress_payload(tracker: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    """Serialize tracker state into a JSON-friendly payload."""
+    tracker = tracker or create_mcp_progress_tracker()
+    steps_payload: List[Dict[str, Any]] = []
+    for step in tracker["steps"]:
+        steps_payload.append({
+            "id": step.get("id"),
+            "name": step.get("name"),
+            "status": step.get("status"),
+            "args": step.get("args", {}),
+            "outputs": step.get("outputs", []),
+        })
+
+    payload: Dict[str, Any] = {
+        "result": tracker.get("final_result") or tracker.get("last_message") or "",
+        "mcp_progress": {
+            "current_tool": tracker.get("current_tool"),
+            "steps": steps_payload,
+        },
+    }
+
+    if tracker.get("error"):
+        payload["error"] = tracker["error"]
+
+    return payload
+
+
+def normalize_tool_output(content: Any) -> Dict[str, Any]:
+    """Convert arbitrary tool output into a normalized dict for streaming."""
+    parsed: Dict[str, Any]
+
+    if isinstance(content, dict):
+        parsed = content
+    elif isinstance(content, str):
+        stripped = content.strip()
+        try:
+            parsed = json.loads(stripped)
+            if not isinstance(parsed, dict):
+                parsed = {"text": stripped}
+        except json.JSONDecodeError:
+            parsed = {"text": stripped}
+    else:
+        parsed = {"text": str(content)}
+
+    normalized: Dict[str, Any] = {
+        "text": parsed.get("result")
+        or parsed.get("text")
+        or parsed.get("message")
+        or "",
+    }
+
+    progress = parsed.get("mcp_progress")
+    if isinstance(progress, dict):
+        normalized["progress_kind"] = "mcp"
+        normalized["current_tool"] = progress.get("current_tool")
+        normalized["steps"] = progress.get("steps", [])
+
+    if parsed.get("error"):
+        normalized["error"] = parsed["error"]
+
+    normalized["raw"] = parsed
+
+    return normalized
 
 
 if __name__ == "__main__":

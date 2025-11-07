@@ -1,11 +1,11 @@
 
 from langchain.chat_models import init_chat_model
 from langgraph.prebuilt import create_react_agent
-from langgraph.checkpoint.sqlite import SqliteSaver
 import sqlite3
 import os
 import warnings
 from config import Config
+from checkpoint import AsyncCompatibleSqliteSaver
 os.environ['GRPC_VERBOSITY'] = 'NONE'
 warnings.filterwarnings('ignore', category=UserWarning)
 
@@ -19,7 +19,7 @@ class OnlineAgent:
         self.llm = init_chat_model(model=f"google_genai:{self.model}")
 
         self.system_prompt = Config.get_system_prompt()
-        self.checkpointer = SqliteSaver(
+        self.checkpointer = AsyncCompatibleSqliteSaver(
             sqlite3.connect(Config.db_path, check_same_thread=False))
         self.agent = create_react_agent(
             self.llm, self.tools, checkpointer=self.checkpointer, prompt=self.system_prompt)
@@ -34,6 +34,13 @@ class OnlineAgent:
             self.llm, self.tools, checkpointer=self.checkpointer, prompt=self.system_prompt)
         return self.model
 
+    def update_tools(self, tools: list):
+        """Update the tools list and rebuild the agent with new tools"""
+        self.tools = tools
+        self.agent = create_react_agent(
+            self.llm, self.tools, checkpointer=self.checkpointer, prompt=self.system_prompt)
+        print(f"Agent updated with {len(tools)} tools")
+
     def send_message(self, message: str, session_id: str = "default_session"):
         """Send message to agent and stream response"""
         if not self.agent:
@@ -41,6 +48,10 @@ class OnlineAgent:
                 "Agent must be initialized before sending messages")
 
         session_config = {"configurable": {"thread_id": session_id}}
+
+        # Attach session_id to current thread for browse_web to access
+        import threading
+        threading.current_thread().session_id = session_id
 
         for step in self.agent.stream({"messages": [
                 {"role": "user", "content": message}]}, config=session_config, stream_mode="values"):

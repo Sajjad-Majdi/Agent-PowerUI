@@ -1,16 +1,24 @@
 import 'package:flutter/material.dart';
 import 'dart:convert';
 
+import '/components/subunits/utilities.dart';
+
 class ToolCallBuilder extends StatelessWidget {
   final String toolName;
   final Map<String, dynamic> toolArgs;
   final String status; // 'in_progress' or 'done'
+  final List<ToolStepState> steps;
+  final String? currentTool;
+  final String? resultText;
 
   const ToolCallBuilder({
     super.key,
     required this.toolName,
     required this.toolArgs,
     this.status = 'done',
+    this.steps = const <ToolStepState>[],
+    this.currentTool,
+    this.resultText,
   });
 
   @override
@@ -94,6 +102,65 @@ class ToolCallBuilder extends StatelessWidget {
                     ),
                   );
                 }).toList(),
+              ),
+            ),
+          ],
+          if (steps.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: steps.map((step) {
+                final isActive = step.status == 'in_progress';
+                final isError = step.status == 'error';
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 2),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: isActive
+                            ? CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: toolColor,
+                              )
+                            : Icon(
+                                isError
+                                    ? Icons.error_outline
+                                    : Icons.check_circle,
+                                color: isError ? Colors.red : Colors.green,
+                                size: 14,
+                              ),
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          _formatToolName(step.name),
+                          style: TextStyle(
+                            fontFamily: 'Nunito',
+                            fontWeight:
+                                isActive ? FontWeight.bold : FontWeight.w600,
+                            fontSize: 12,
+                            color: isError
+                                ? Colors.red
+                                : theme.textTheme.bodyMedium?.color,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }).toList(),
+            ),
+          ] else if (status == 'in_progress') ...[
+            const SizedBox(height: 8),
+            Text(
+              'MCP agent is running...',
+              style: TextStyle(
+                fontFamily: 'Nunito',
+                fontSize: 12,
+                color: theme.textTheme.bodySmall?.color,
               ),
             ),
           ],

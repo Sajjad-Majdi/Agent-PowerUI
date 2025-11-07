@@ -83,6 +83,7 @@ class _InputBarState extends State<InputBar> with TickerProviderStateMixin {
               child: ToolBox(
                 tools: _tools,
                 isLoading: _toolsLoading,
+                onRefresh: _loadTools,
               ),
             ),
           ),

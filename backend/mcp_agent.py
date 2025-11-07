@@ -2,12 +2,14 @@ from langchain_mcp_adapters.client import MultiServerMCPClient
 from langchain_mcp_adapters.tools import load_mcp_tools
 from langchain.chat_models import init_chat_model
 from langgraph.prebuilt import create_react_agent
+from langgraph.checkpoint.memory import MemorySaver
 from langchain_core.tools import tool
 from langchain_openai import ChatOpenAI
 
 from config import Config
 import asyncio
 import logging
+import uuid
 
 
 def silence_gemini_schema_warnings():
@@ -83,8 +85,10 @@ class MCPAgent:
         self.model = init_chat_model(model=f"google_genai:{model_name}")
         self.mcp_config = mcp_config
         self.system_prompt = system_prompt
+        self.checkpointer = MemorySaver()
 
-    async def run_agent(self, prompt: str):
+    async def run_agent(self, prompt: str, thread_id: str | None = None):
+        thread_id = thread_id or f"mcp-{uuid.uuid4().hex}"
 
         client = MultiServerMCPClient(self.mcp_config)
 
@@ -97,21 +101,31 @@ class MCPAgent:
             agent = create_react_agent(
                 self.model,
                 tools,
-                prompt=self.system_prompt
+                prompt=self.system_prompt,
+                checkpointer=self.checkpointer
             )
             async for step in agent.astream(
                 {"messages": [{"role": "user", "content": prompt}]},
                 stream_mode="values",
-                config={"recursion_limit": 50}
+                config={
+                    "recursion_limit": 50,
+                    "configurable": {"thread_id": thread_id}
+                }
             ):
                 last_message = step["messages"][-1]
 
                 def proccess_msg(message):
                     if hasattr(message, "tool_calls") and message.tool_calls:
-                        tool = f"{message.tool_calls[0]['name']}({message.tool_calls[0]['args']})"
+                        tool_calls = []
+                        for call in message.tool_calls:
+                            tool_calls.append({
+                                "id": call.get("id"),
+                                "name": call.get("name"),
+                                "args": call.get("args", {}),
+                            })
 
                         return {
-                            "content": tool,
+                            "content": tool_calls,
                             "type": "tool_call"
                         }
                     else:
@@ -120,7 +134,14 @@ class MCPAgent:
                         elif message.type == "ai":
                             return {"content": message.content, "type": "ai"}
                         else:
-                            return {"content": message.content, "type": "tool_message"}
+                            return {
+                                "content": {
+                                    "message": message.content,
+                                    "tool_call_id": getattr(message, "tool_call_id", None),
+                                    "name": getattr(message, "name", None),
+                                },
+                                "type": "tool_message"
+                            }
 
                 result = proccess_msg(last_message)
                 if result is not None:

@@ -5,10 +5,10 @@ import os
 from config import Config
 from langchain_openai import ChatOpenAI
 from langgraph.prebuilt import create_react_agent
-from langgraph.checkpoint.sqlite import SqliteSaver
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from langchain_mcp_adapters.tools import load_mcp_tools
 import asyncio
+from checkpoint import AsyncCompatibleSqliteSaver
 
 db_path = Config.db_path
 os.makedirs(os.path.dirname(db_path), exist_ok=True)
@@ -24,7 +24,7 @@ class LocalAgent:
         self.agent = None
         self.llm = None
         self.system_prompt = Config.get_system_prompt()
-        self.checkpointer = SqliteSaver(
+        self.checkpointer = AsyncCompatibleSqliteSaver(
             sqlite3.connect(db_path, check_same_thread=False))
 
     def start_server(self):

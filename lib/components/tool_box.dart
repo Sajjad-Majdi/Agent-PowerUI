@@ -1,16 +1,25 @@
 import 'package:flutter/material.dart';
 import 'package:iconsax/iconsax.dart';
 import '/theme.dart';
+import '/services/api_service.dart';
 
-class ToolBox extends StatelessWidget {
+class ToolBox extends StatefulWidget {
   final List<Map<String, dynamic>> tools;
   final bool isLoading;
+  final VoidCallback onRefresh;
 
   const ToolBox({
     Key? key,
     required this.tools,
     required this.isLoading,
+    required this.onRefresh,
   }) : super(key: key);
+
+  @override
+  State<ToolBox> createState() => _ToolBoxState();
+}
+
+class _ToolBoxState extends State<ToolBox> {
 
   @override
   Widget build(BuildContext context) {
@@ -68,9 +77,9 @@ class ToolBox extends StatelessWidget {
           ),
           // Content
           Flexible(
-            child: isLoading
+            child: widget.isLoading
                 ? _buildLoadingState(theme)
-                : tools.isEmpty
+                : widget.tools.isEmpty
                     ? _buildEmptyState(theme)
                     : _buildToolsList(theme),
           ),
@@ -139,7 +148,7 @@ class ToolBox extends StatelessWidget {
     return ListView.separated(
       shrinkWrap: true,
       padding: const EdgeInsets.symmetric(vertical: 4),
-      itemCount: tools.length,
+      itemCount: widget.tools.length,
       separatorBuilder: (context, index) => Divider(
         height: 1,
         thickness: 1,
@@ -148,13 +157,14 @@ class ToolBox extends StatelessWidget {
         endIndent: 12,
       ),
       itemBuilder: (context, index) {
-        final tool = tools[index];
+        final tool = widget.tools[index];
         final isMcpGroup = tool['mcp'] == true;
         if (isMcpGroup) {
           final serverName = tool['name']?.toString() ?? 'MCP';
+          final enabled = tool['enabled'] ?? true;
           final serverTools =
               (tool['tools'] as List?)?.cast<String>() ?? const [];
-          return _buildMcpGroupItem(theme, serverName, serverTools);
+          return _buildMcpGroupItem(theme, serverName, enabled, serverTools);
         }
         return _buildToolItem(theme, tool);
       },
@@ -209,7 +219,7 @@ class ToolBox extends StatelessWidget {
   }
 
   Widget _buildMcpGroupItem(
-      ThemeData theme, String serverName, List<String> serverTools) {
+      ThemeData theme, String serverName, bool enabled, List<String> serverTools) {
     const int maxToolsToShow = 4;
     final displayTools = serverTools.take(maxToolsToShow).toList();
     final hasMore = serverTools.length > maxToolsToShow;
@@ -224,12 +234,17 @@ class ToolBox extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(4),
                 decoration: BoxDecoration(
-                  color: theme.colorScheme.primaryContainer.withAlpha(128),
+                  color: enabled
+                      ? theme.colorScheme.primaryContainer.withAlpha(128)
+                      : theme.colorScheme.surfaceContainerHighest.withAlpha(128),
                   borderRadius: BorderRadius.circular(4),
                 ),
                 child: Icon(
                   Iconsax.hierarchy_2,
                   size: 16,
+                  color: enabled
+                      ? theme.colorScheme.primary
+                      : theme.colorScheme.onSurfaceVariant.withAlpha(128),
                 ),
               ),
               const SizedBox(width: 8),
@@ -238,7 +253,9 @@ class ToolBox extends StatelessWidget {
                   serverName,
                   style: theme.textTheme.bodySmall?.copyWith(
                     fontWeight: FontWeight.w700,
-                    color: theme.colorScheme.onSurface,
+                    color: enabled
+                        ? theme.colorScheme.onSurface
+                        : theme.colorScheme.onSurfaceVariant.withAlpha(128),
                     fontFamily: 'Nunito',
                     fontSize: 16,
                   ),
@@ -247,71 +264,104 @@ class ToolBox extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
-                  color: theme.colorScheme.primaryContainer.withAlpha(128),
+                  color: enabled
+                      ? theme.colorScheme.primaryContainer.withAlpha(128)
+                      : theme.colorScheme.surfaceContainerHighest.withAlpha(128),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
                   '${serverTools.length}',
                   style: theme.textTheme.labelSmall?.copyWith(
-                    color: theme.colorScheme.primary,
+                    color: enabled
+                        ? theme.colorScheme.primary
+                        : theme.colorScheme.onSurfaceVariant.withAlpha(128),
                     fontWeight: FontWeight.w600,
                     fontSize: 11,
                   ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Transform.scale(
+                scale: 0.8,
+                child: Switch(
+                  value: enabled,
+                  onChanged: (value) async {
+                    try {
+                      await ApiService.toggleMcpServer(serverName, value);
+                      widget.onRefresh();
+                    } catch (e) {
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Failed to toggle $serverName: $e'),
+                            backgroundColor: theme.colorScheme.error,
+                          ),
+                        );
+                      }
+                    }
+                  },
+                  activeColor: theme.colorScheme.primary,
+                  activeTrackColor: theme.colorScheme.primaryContainer,
+                  inactiveThumbColor: theme.colorScheme.onSurfaceVariant.withAlpha(128),
+                  inactiveTrackColor: theme.colorScheme.surfaceContainerHighest.withAlpha(128),
                 ),
               ),
             ],
           ),
           if (serverTools.isNotEmpty) ...[
             const SizedBox(height: 4),
-            Wrap(
-              spacing: 4,
-              runSpacing: 4,
-              children: [
-                ...displayTools.map((t) {
-                  return Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.secondaryContainer.withAlpha(64),
-                      borderRadius: BorderRadius.circular(4),
-                      border: Border.all(
-                        color: theme.colorScheme.outlineVariant.withAlpha(64),
-                        width: 1,
+            Opacity(
+              opacity: enabled ? 1.0 : 0.5,
+              child: Wrap(
+                spacing: 4,
+                runSpacing: 4,
+                children: [
+                  ...displayTools.map((t) {
+                    return Container(
+                      padding:
+                          const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.secondaryContainer.withAlpha(64),
+                        borderRadius: BorderRadius.circular(4),
+                        border: Border.all(
+                          color: theme.colorScheme.outlineVariant.withAlpha(64),
+                          width: 1,
+                        ),
+                      ),
+                      child: Text(
+                        t,
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    );
+                  }),
+                  if (hasMore)
+                    Container(
+                      padding:
+                          const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.secondaryContainer.withAlpha(64),
+                        borderRadius: BorderRadius.circular(4),
+                        border: Border.all(
+                          color: theme.colorScheme.outlineVariant.withAlpha(64),
+                          width: 1,
+                        ),
+                      ),
+                      child: Text(
+                        '+${serverTools.length - maxToolsToShow}',
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                          fontStyle: FontStyle.italic,
+                        ),
                       ),
                     ),
-                    child: Text(
-                      t,
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                        fontSize: 10,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  );
-                }),
-                if (hasMore)
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.secondaryContainer.withAlpha(64),
-                      borderRadius: BorderRadius.circular(4),
-                      border: Border.all(
-                        color: theme.colorScheme.outlineVariant.withAlpha(64),
-                        width: 1,
-                      ),
-                    ),
-                    child: Text(
-                      '+${serverTools.length - maxToolsToShow}',
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                        fontSize: 10,
-                        fontWeight: FontWeight.w600,
-                        fontStyle: FontStyle.italic,
-                      ),
-                    ),
-                  ),
-              ],
+                ],
+              ),
             ),
           ],
         ],

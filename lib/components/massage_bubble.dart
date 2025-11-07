@@ -50,6 +50,7 @@ class _MessageBubbleState extends State<MessageBubble> {
           toolName: widget.toolCall!['name'] ?? 'Unknown Tool',
           toolArgs: Map<String, dynamic>.from(widget.toolCall!['args'] ?? {}),
           status: 'done',
+          steps: const <ToolStepState>[],
         ),
       );
     }
@@ -133,6 +134,9 @@ class _MessageBubbleState extends State<MessageBubble> {
                     toolName: toolState.toolName,
                     toolArgs: toolState.toolArgs,
                     status: toolState.status,
+                    steps: toolState.steps,
+                    currentTool: toolState.currentTool,
+                    resultText: toolState.resultText,
                   ),
                 );
               }

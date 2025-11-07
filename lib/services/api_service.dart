@@ -94,6 +94,7 @@ class ApiService {
       if (mcp != null && mcp['servers'] is List) {
         for (final server in mcp['servers']) {
           final name = server['name'] ?? 'MCP';
+          final enabled = server['enabled'] ?? true;
           final tools = (server['tools'] as List?)
                   ?.map((t) => t['name'].toString())
                   .toList() ??
@@ -101,6 +102,7 @@ class ApiService {
           coreTools.add({
             'name': name,
             'mcp': true,
+            'enabled': enabled,
             'tools': tools,
           });
         }
@@ -225,17 +227,40 @@ class ApiService {
     }
     throw Exception('Failed to set model: ${response.statusCode}');
   }
+
+  static Future<bool> toggleMcpServer(String serverName, bool enabled) async {
+    await ensureBackendReady();
+    final response = await http.post(
+      Uri.parse('$baseUrl/mcp/toggle'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'server_name': serverName,
+        'enabled': enabled,
+      }),
+    );
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      return data['enabled'] == true;
+    }
+    throw Exception('Failed to toggle MCP server: ${response.statusCode}');
+  }
 }
 
 void main() async {
-  final sessionId = 'test_5329';
+  final sessionId = 'test_532349';
   final response = ApiService.streamChat(
-      message: 'how is the weather in tokyo tommarow?', sessionId: sessionId);
+      message:
+          'use the browsing tool and search for the weather in Tehran tomorrow',
+      sessionId: sessionId);
   await for (final event in response) {
     final type = event['type'];
     final content = event['content'];
     if (content != null) {
-      print('[$type] $content');
+      if (type == 'tool_message') {
+        print('[$type] ${content.substring(0, 100)}...');
+      } else {
+        print('[$type] $content');
+      }
     } else {
       print('[$type]');
     }

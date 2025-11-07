@@ -7,11 +7,14 @@ from utils import (
     list_chat_sessions_named,
     get_session_messages,
     delete_session as delete_session_util,
+    normalize_tool_output,
 )
 import json
 import asyncio
 import os
 import warnings
+import threading
+import queue as queue_module
 
 # Suppress MCP schema warnings
 warnings.filterwarnings('ignore')
@@ -25,6 +28,9 @@ CORS(app)
 online_agent = None
 local_agent = None
 available_tools = Config.get_default_tools()
+
+# Global queue for MCP progress streaming
+mcp_progress_queues = {}
 
 
 @app.route('/api/chat', methods=['POST'])
@@ -41,26 +47,59 @@ def chat():
         return jsonify({'error': 'Online agent not initialized'}), 500
 
     try:
+        progress_queue = queue_module.Queue()
+        mcp_progress_queues[session_id] = progress_queue
+
         def generate_response():
+            import time
             try:
-                for last_message in online_agent.send_message(message, session_id):
+                agent_iter = online_agent.send_message(message, session_id)
+                agent_done = False
 
-                    if hasattr(last_message, 'tool_calls') and last_message.tool_calls:
-                        for tool_call in last_message.tool_calls:
-                            yield json.dumps({'type': 'tool_call', 'content': {'name': tool_call['name'], 'args': tool_call['args']}}) + '\n'
+                while not agent_done:
+                    # Try to get next agent message (non-blocking check)
+                    try:
+                        last_message = next(agent_iter)
 
-                    elif hasattr(last_message, 'content') and last_message.content:
-                        if last_message.type == "human":
-                            yield json.dumps({'type': 'user_message', 'content': last_message.content}) + '\n'
-                        elif last_message.type == "ai":
-                            yield json.dumps({'type': 'ai_message', 'content': last_message.content}) + '\n'
-                        else:
-                            yield json.dumps({'type': 'tool_message', 'content': last_message.content}) + '\n'
+                        if hasattr(last_message, 'tool_calls') and last_message.tool_calls:
+                            for tool_call in last_message.tool_calls:
+                                yield json.dumps({'type': 'tool_call', 'content': {'name': tool_call['name'], 'args': tool_call['args']}}) + '\n'
+
+                        elif hasattr(last_message, 'content') and last_message.content:
+                            if last_message.type == "human":
+                                yield json.dumps({'type': 'user_message', 'content': last_message.content}) + '\n'
+                            elif last_message.type == "ai":
+                                yield json.dumps({'type': 'ai_message', 'content': last_message.content}) + '\n'
+                            else:
+                                normalized = normalize_tool_output(
+                                    last_message.content)
+                                yield json.dumps({
+                                    'type': 'tool_message',
+                                    'content': normalized
+                                }) + '\n'
+
+                    except StopIteration:
+                        agent_done = True
+
+                    # Always check for queued MCP progress updates
+                    while not progress_queue.empty():
+                        try:
+                            progress_event = progress_queue.get_nowait()
+                            yield json.dumps(progress_event) + '\n'
+                        except queue_module.Empty:
+                            break
+
+                    # Small sleep to allow queue updates
+                    if not agent_done:
+                        time.sleep(0.05)
 
                 yield json.dumps({'type': 'complete'}) + '\n'
 
             except Exception as e:
                 yield json.dumps({'type': 'error', 'content': str(e)}) + '\n'
+            finally:
+                if session_id in mcp_progress_queues:
+                    del mcp_progress_queues[session_id]
 
         return Response(generate_response(), mimetype='application/x-ndjson')
 
@@ -134,14 +173,42 @@ def get_tools():
             except Exception:
                 tools_info.append({'name': str(tool), 'description': ''})
 
-    # mcp tools if online agent initialized with MCP
+    # Load MCP tools from configuration
     mcp = {'servers': []}
     try:
-        if online_agent is not None and hasattr(online_agent, 'mcp_tools_by_server'):
-            for server_name, tool_names in online_agent.mcp_tools_by_server.items():
-                mcp['servers'].append({'name': server_name, 'tools': [
-                                      {'name': n} for n in tool_names]})
-    except Exception:
+        from langchain_mcp_adapters.client import MultiServerMCPClient
+        from langchain_mcp_adapters.tools import load_mcp_tools
+
+        mcp_servers = Config.get_mcp_servers()
+        mcp_state = Config.get_mcp_state()
+
+        if mcp_servers:
+            for server_name, server_config in mcp_servers.items():
+                # Check if server is enabled in state
+                is_enabled = mcp_state.get(server_name, True)
+
+                # Get tool list by connecting briefly (only for UI display)
+                tool_names = []
+                try:
+                    async def get_tool_names():
+                        client = MultiServerMCPClient(
+                            {server_name: server_config})
+                        async with client.session(server_name) as session:
+                            tools = await load_mcp_tools(session)
+                            return [tool.name for tool in tools]
+
+                    tool_names = asyncio.run(get_tool_names())
+                except Exception as e:
+                    print(f"Error loading tools from {server_name}: {e}")
+                    tool_names = []
+
+                mcp['servers'].append({
+                    'name': server_name,
+                    'enabled': is_enabled,
+                    'tools': [{'name': name} for name in tool_names]
+                })
+    except Exception as e:
+        print(f"Error loading MCP tools: {e}")
         pass
 
     return jsonify({'tools': tools_info, 'mcp': mcp})
@@ -236,6 +303,40 @@ def set_model():
             return jsonify({'error': 'Online agent not initialized'}), 500
         new_model = online_agent.set_model(model)
         return jsonify({'model': new_model})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/mcp/toggle', methods=['POST'])
+def toggle_mcp_server():
+    """Toggle an MCP server on or off"""
+    try:
+        data = request.json or {}
+        server_name = data.get('server_name')
+        enabled = data.get('enabled')
+
+        if server_name is None or enabled is None:
+            return jsonify({'error': 'server_name and enabled are required'}), 400
+
+        # Get current state
+        mcp_state = Config.get_mcp_state()
+
+        # Update the state
+        mcp_state[server_name] = enabled
+
+        # Save the state
+        Config.set_mcp_state(mcp_state)
+
+        # Reload the online agent with updated tools
+        global online_agent, available_tools
+        if online_agent is not None:
+            tools = Config.get_default_tools()
+            online_agent.update_tools(tools)
+            available_tools = tools
+            print(
+                f"Agent tools reloaded after toggling {server_name} to {enabled}")
+
+        return jsonify({'message': f"MCP server '{server_name}' toggled successfully", 'enabled': enabled})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 

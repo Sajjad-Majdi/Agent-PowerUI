@@ -5,6 +5,11 @@ from datetime import datetime
 import json
 from typing import Optional
 from config import Config
+from utils import (
+    build_mcp_progress_payload,
+    create_mcp_progress_tracker,
+    update_mcp_progress,
+)
 import asyncio
 from mcp_agent import MCPAgent, web_browsing_prompt
 
@@ -104,25 +109,54 @@ def browse_web(query: str) -> str:
         str: The final response from the browsing agent.
     """
     async def run():
+        # Use enabled MCP servers
+        mcp_servers = Config.get_enabled_mcp_servers()
+
         system_prompt = web_browsing_prompt
         agent = MCPAgent(
-            mcp_config=Config.get_mcp_servers(),
+            mcp_config=mcp_servers,
             system_prompt=system_prompt
         )
         print("------------ agent session ------------")
-        async for response in agent.run_agent(query):
-            # Print progress for debugging
-            print(f"{response['type']}: {response['content'][:100]}...")
-            print("-" * 60)
+        tracker = create_mcp_progress_tracker()
 
-            # Keep only the final AI response
-            if response['type'] == 'ai':
-                final_response = response['content']
+        # Try to get progress queue from API global state
+        progress_queue = None
+        try:
+            from api import mcp_progress_queues
+            import threading
+            session_id = getattr(
+                threading.current_thread(), 'session_id', None)
+            if session_id and session_id in mcp_progress_queues:
+                progress_queue = mcp_progress_queues[session_id]
+        except Exception:
+            pass
+
+        async for response in agent.run_agent(query):
+            tracker = update_mcp_progress(tracker, response)
+
+            # Stream incremental progress if queue available
+            if progress_queue is not None and response.get('type') in ['tool_call', 'tool_message']:
+                step_event = {
+                    'type': 'mcp_progress',
+                    'content': {
+                        'steps': tracker['steps'],
+                        'current_tool': tracker.get('current_tool')
+                    }
+                }
+                try:
+                    progress_queue.put_nowait(step_event)
+                except Exception:
+                    pass
+
         print("------------ end of agent session ------------")
 
-        return final_response if final_response else "No response generated."
+        payload = build_mcp_progress_payload(tracker)
+        return json.dumps(payload, ensure_ascii=False)
 
     try:
         return asyncio.run(run())
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         return f"Error: {str(e)}"

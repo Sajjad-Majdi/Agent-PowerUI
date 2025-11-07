@@ -32,8 +32,42 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
 
         await for (final chunk in ApiService.streamChat(
             message: event.message, sessionId: sessionId)) {
+          
+          // Handle MCP progress updates
+          if (chunk['type'] == 'mcp_progress') {
+            final dynamic content = chunk['content'];
+            if (content is Map<String, dynamic> && pendingToolCallId != null) {
+              final stepsData = content['steps'];
+              if (stepsData is List && toolCallStates.containsKey(pendingToolCallId)) {
+                final extracted = <ToolStepState>[];
+                for (final entry in stepsData) {
+                  if (entry is Map) {
+                    extracted.add(
+                      ToolStepState.fromMap(Map<String, dynamic>.from(entry)),
+                    );
+                  }
+                }
+                
+                final previous = toolCallStates[pendingToolCallId]!;
+                toolCallStates[pendingToolCallId] = ToolCallState(
+                  toolName: previous.toolName,
+                  toolArgs: previous.toolArgs,
+                  status: 'in_progress',
+                  steps: extracted,
+                  currentTool: content['current_tool']?.toString(),
+                );
+                
+                if (toolMessageIndex != null) {
+                  chatHistory[toolMessageIndex].toolCallStates =
+                      Map.from(toolCallStates);
+                  emit(ChatLoading(chatHistory, sessionId));
+                }
+              }
+            }
+          }
+          
           // Handle tool calls
-          if (chunk['type'] == 'tool_call') {
+          else if (chunk['type'] == 'tool_call') {
             final toolData = chunk['content'] as Map<String, dynamic>;
             final incomingName = toolData['name'] ?? 'Unknown Tool';
             final incomingArgs =
@@ -61,6 +95,7 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
                 toolName: incomingName,
                 toolArgs: incomingArgs,
                 status: 'in_progress',
+                steps: const <ToolStepState>[],
               );
 
               toolMarkers += '<tool_call id="$toolId"></tool_call>';
@@ -84,12 +119,59 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
 
           // Handle tool message (mark tool call as done, don't show message)
           else if (chunk['type'] == 'tool_message') {
+            final dynamic content = chunk['content'];
             if (pendingToolCallId != null &&
                 toolCallStates.containsKey(pendingToolCallId)) {
+              final previous = toolCallStates[pendingToolCallId]!;
+
+              List<ToolStepState> parsedSteps = previous.steps;
+              String? currentTool;
+              String? resultText;
+              String statusValue = 'done';
+
+              if (content is Map<String, dynamic>) {
+                // Only parse steps if not already populated by mcp_progress
+                if (previous.steps.isEmpty) {
+                  final stepsData = content['steps'];
+                  if (stepsData is List) {
+                    final extracted = <ToolStepState>[];
+                    for (final entry in stepsData) {
+                      if (entry is Map) {
+                        extracted.add(
+                          ToolStepState.fromMap(
+                              Map<String, dynamic>.from(entry)),
+                        );
+                      }
+                    }
+                    if (extracted.isNotEmpty) {
+                      parsedSteps = extracted;
+                    }
+                  }
+                } else {
+                  parsedSteps = previous.steps;
+                }
+
+                final current = content['current_tool'];
+                if (current != null) {
+                  currentTool = current.toString();
+                }
+
+                final error = content['error'];
+                if (error != null) {
+                  statusValue = 'error';
+                  if (error.toString().isNotEmpty) {
+                    resultText = 'Error: ${error.toString()}';
+                  }
+                }
+              }
+
               toolCallStates[pendingToolCallId] = ToolCallState(
-                toolName: toolCallStates[pendingToolCallId]!.toolName,
-                toolArgs: toolCallStates[pendingToolCallId]!.toolArgs,
-                status: 'done',
+                toolName: previous.toolName,
+                toolArgs: previous.toolArgs,
+                status: statusValue,
+                steps: parsedSteps,
+                currentTool: currentTool,
+                resultText: resultText,
               );
 
               if (toolMessageIndex != null) {
