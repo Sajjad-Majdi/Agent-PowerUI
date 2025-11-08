@@ -3,6 +3,97 @@ import 'dart:async';
 import 'package:http/http.dart' as http;
 import '/components/subunits/utilities.dart';
 
+class LocalModelInfo {
+  final String name;
+  final int sizeBytes;
+
+  const LocalModelInfo({
+    required this.name,
+    required this.sizeBytes,
+  });
+
+  factory LocalModelInfo.fromJson(Map<String, dynamic> json) {
+    final sizeValue = json['size_bytes'];
+    final int size =
+        sizeValue is num ? sizeValue.toInt() : int.tryParse('$sizeValue') ?? 0;
+    return LocalModelInfo(
+      name: json['name']?.toString() ?? '',
+      sizeBytes: size,
+    );
+  }
+
+  String get humanReadableSize {
+    const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+    double size = sizeBytes.toDouble();
+    int unitIndex = 0;
+    while (size >= 1024 && unitIndex < units.length - 1) {
+      size /= 1024;
+      unitIndex++;
+    }
+    return '${size.toStringAsFixed(unitIndex == 0 ? 0 : 1)} ${units[unitIndex]}';
+  }
+}
+
+class LocalAgentStatus {
+  final bool running;
+  final String? model;
+
+  const LocalAgentStatus({required this.running, this.model});
+
+  factory LocalAgentStatus.fromJson(Map<String, dynamic> json) {
+    if (json.containsKey('running')) {
+      return LocalAgentStatus(
+        running: json['running'] == true,
+        model: json['model']?.toString(),
+      );
+    }
+    final status = json['status']?.toString() ?? '';
+    if (status == 'started') {
+      return LocalAgentStatus(
+        running: true,
+        model: json['model']?.toString(),
+      );
+    }
+    if (status == 'stopped') {
+      return const LocalAgentStatus(running: false);
+    }
+    final nested = json['status'];
+    if (nested is Map<String, dynamic>) {
+      return LocalAgentStatus.fromJson(nested);
+    }
+    return LocalAgentStatus(
+      running: json['running'] == true || status == 'started',
+      model: json['model']?.toString(),
+    );
+  }
+}
+
+class LocalModelsResult {
+  final List<LocalModelInfo> models;
+  final LocalAgentStatus status;
+
+  const LocalModelsResult({required this.models, required this.status});
+
+  factory LocalModelsResult.fromJson(Map<String, dynamic> json) {
+    final modelsJson = (json['models'] as List?) ?? const [];
+    final models = modelsJson
+        .whereType<Map>()
+        .map((m) => LocalModelInfo.fromJson(Map<String, dynamic>.from(m)))
+        .toList();
+    final dynamic statusJson = json['status'];
+    Map<String, dynamic> parsedStatus = {};
+    if (statusJson is Map) {
+      parsedStatus = Map<String, dynamic>.from(statusJson);
+    } else if (statusJson is String) {
+      parsedStatus = {'status': statusJson};
+    }
+    return LocalModelsResult(
+      models: models,
+      status: LocalAgentStatus.fromJson(parsedStatus),
+    );
+  }
+}
+
 class ApiService {
   static const String baseUrl = 'http://localhost:5000/api';
 
@@ -134,6 +225,16 @@ class ApiService {
     throw Exception('Failed to get memory');
   }
 
+  static Future<void> deleteMemoryFact(String category, int factId) async {
+    await ensureBackendReady();
+    final response = await http.delete(
+      Uri.parse('$baseUrl/memory/$category/$factId'),
+    );
+    if (response.statusCode != 200) {
+      throw Exception('Failed to delete memory fact');
+    }
+  }
+
   static Future<Map<String, dynamic>> healthCheck() async {
     try {
       final response = await http.get(Uri.parse('$baseUrl/health'));
@@ -238,14 +339,64 @@ class ApiService {
     throw Exception('Failed to delete session: ${response.statusCode}');
   }
 
-  static Future<List<String>> listLocalModels() async {
+  static Future<LocalModelsResult> listLocalModels() async {
     await ensureBackendReady();
     final response = await http.get(Uri.parse('$baseUrl/list_models'));
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
-      return List<String>.from(data['models']);
+      return LocalModelsResult.fromJson(Map<String, dynamic>.from(data));
     }
     throw Exception('Failed to list local models');
+  }
+
+  static Future<LocalAgentStatus> getLocalAgentStatus() async {
+    await ensureBackendReady();
+    final response = await http.get(Uri.parse('$baseUrl/local/status'));
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      return LocalAgentStatus.fromJson(Map<String, dynamic>.from(data));
+    }
+    throw Exception('Failed to get local agent status');
+  }
+
+  static Future<LocalAgentStatus> startLocalModel(String model) async {
+    await ensureBackendReady();
+    final response = await http.post(
+      Uri.parse('$baseUrl/local/start'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'model': model}),
+    );
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      return LocalAgentStatus.fromJson(Map<String, dynamic>.from(data));
+    }
+    try {
+      final error = jsonDecode(response.body);
+      if (error is Map && error['error'] != null) {
+        throw Exception(error['error']);
+      }
+    } catch (_) {
+      // ignore decode errors
+    }
+    throw Exception('Failed to start local model');
+  }
+
+  static Future<LocalAgentStatus> stopLocalModel() async {
+    await ensureBackendReady();
+    final response = await http.post(Uri.parse('$baseUrl/local/stop'));
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      return LocalAgentStatus.fromJson(Map<String, dynamic>.from(data));
+    }
+    try {
+      final error = jsonDecode(response.body);
+      if (error is Map && error['error'] != null) {
+        throw Exception(error['error']);
+      }
+    } catch (_) {
+      // ignore decode errors
+    }
+    throw Exception('Failed to stop local model');
   }
 
   static Future<Map<String, dynamic>> getGeminiModels() async {

@@ -8,6 +8,10 @@ from utils import (
     get_session_messages,
     delete_session as delete_session_util,
     normalize_tool_output,
+    list_local_models,
+    stop_local_agent as stop_local_agent_util,
+    get_local_agent,
+    get_local_agent_status,
 )
 import json
 import asyncio
@@ -26,7 +30,6 @@ CORS(app)
 
 # Global agent instances
 online_agent = None
-local_agent = None
 available_tools = Config.get_default_tools()
 
 # Global queue for MCP progress streaming
@@ -135,13 +138,14 @@ def chat_local():
     if not message:
         return jsonify({'error': 'Message is required'}), 400
 
-    if not local_agent:
+    agent = get_local_agent()
+    if not agent or not agent.is_running():
         return jsonify({'error': 'Local agent not initialized'}), 500
 
     try:
         def generate_response():
             try:
-                for last_message in local_agent.send_message(message, session_id):
+                for last_message in agent.send_message(message, session_id):
 
                     if hasattr(last_message, 'tool_calls') and last_message.tool_calls:
                         for tool_call in last_message.tool_calls:
@@ -196,8 +200,60 @@ def stop_chat():
 @app.route('/api/initialize_local_agent', methods=['POST'])
 def initialize_local_agent_route():
     """Initialize the local agent with llama.cpp"""
-    init_local_agent()
-    return jsonify({'message': 'Local agent initialized'})
+    global local_agent
+    data = request.json or {}
+    model = data.get('model')
+    try:
+        local_agent = init_local_agent(model_name=model)
+        status = get_local_agent_status()
+        return jsonify({'message': 'Local agent initialized', 'status': status})
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/local/start', methods=['POST'])
+def start_local_agent_route():
+    """Start the local llama.cpp server with selected model"""
+    data = request.json or {}
+    model = data.get('model')
+    print(f"[API] Starting local agent with model: {model}")
+    try:
+        init_local_agent(model_name=model)
+        print(f"[API] Local agent started successfully")
+        status = get_local_agent_status()
+        print(f"[API] Status: {status}")
+        return jsonify(status), 200
+    except ValueError as e:
+        print(f"[API] ValueError: {e}")
+        return jsonify({'error': str(e)}), 400
+    except Exception as e:
+        print(f"[API] Exception: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/local/stop', methods=['POST'])
+def stop_local_agent_route():
+    """Stop the running local llama.cpp server if active"""
+    try:
+        stop_local_agent_util()
+        status = get_local_agent_status()
+        return jsonify(status), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/local/status', methods=['GET'])
+def local_agent_status_route():
+    """Return current status for the local llama.cpp server"""
+    try:
+        status = get_local_agent_status()
+        return jsonify(status), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 
 @app.route('/api/tools', methods=['GET'])
@@ -273,6 +329,41 @@ def get_memory_data():
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/api/memory/<string:category>/<int:fact_id>', methods=['DELETE'])
+def delete_memory_fact(category, fact_id):
+    """Delete a specific fact from memory"""
+    try:
+        memory_path = Config.memory_path
+        if not os.path.exists(memory_path):
+            return jsonify({'error': 'Memory file not found'}), 404
+
+        with open(memory_path, "r") as f:
+            memory = json.load(f)
+
+        if category not in memory:
+            return jsonify({'error': 'Category not found'}), 404
+
+        # Find and remove the fact
+        original_length = len(memory[category])
+        memory[category] = [fact for fact in memory[category]
+                            if fact.get('id') != fact_id]
+
+        if len(memory[category]) == original_length:
+            return jsonify({'error': 'Fact not found'}), 404
+
+        # Remove category if empty
+        if not memory[category]:
+            del memory[category]
+
+        # Save back to file
+        with open(memory_path, "w") as f:
+            json.dump(memory, f, indent=4)
+
+        return jsonify({'message': 'Fact deleted successfully'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/api/list_chat_sessions', methods=['GET'])
 def get_chat_sessions():
     """List all chat sessions"""
@@ -310,12 +401,9 @@ def delete_session_route(session_id):
 def list_models():
     """List all available local models"""
     try:
-        models_folder = Config.models_folder
-        if not os.path.exists(models_folder):
-            return jsonify({'models': []})
-
-        models = [f for f in os.listdir(models_folder) if f.endswith('.gguf')]
-        return jsonify({'models': models})
+        models = list_local_models()
+        status = get_local_agent_status()
+        return jsonify({'models': models, 'status': status})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -384,10 +472,11 @@ def toggle_mcp_server():
 @app.route('/api/health', methods=['GET'])
 def health_check():
     """Health check endpoint"""
+    status = get_local_agent_status()
     return jsonify({
         'status': 'healthy',
         'online_agent_initialized': online_agent is not None,
-        'local_agent_initialized': local_agent is not None
+        'local_agent_initialized': status.get('running', False)
     })
 
 

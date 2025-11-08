@@ -1,36 +1,82 @@
 import 'package:flutter/material.dart';
 
 class AppTheme {
-  static const colors = _AppColors();
+  static const _defaultMainColor = Color.fromARGB(255, 35, 150, 245);
+  static const _privacyMainColor = Color.fromARGB(255, 142, 82, 255);
+
+  static final ValueNotifier<bool> _privacyModeNotifier =
+      ValueNotifier<bool>(false);
+  static AppColorPalette? _cachedPalette;
+
+  static ValueNotifier<bool> get privacyModeNotifier => _privacyModeNotifier;
+  static bool get isPrivacyMode => _privacyModeNotifier.value;
+
+  static void setPrivacyMode(bool enabled) {
+    if (_privacyModeNotifier.value != enabled) {
+      _privacyModeNotifier.value = enabled;
+      _cachedPalette = null;
+    }
+  }
+
+  static void togglePrivacyMode() {
+    setPrivacyMode(!isPrivacyMode);
+  }
+
+  static AppColorPalette get colors {
+    final baseColor = isPrivacyMode ? _privacyMainColor : _defaultMainColor;
+    final palette = _cachedPalette;
+    if (palette == null || palette.mainColor != baseColor) {
+      _cachedPalette = AppColorPalette(baseColor);
+    }
+    return _cachedPalette!;
+  }
+
+  static Color get currentMainColor => colors.primaryColor;
+
   static const textStyles = _AppTextStyles();
 }
 
-class _AppColors {
-  const _AppColors();
-  final mainColor = const Color.fromARGB(255, 35, 150, 245);
-  get primaryColor => mainColor;
-  get backgroundColor => HSLColor.fromColor(mainColor)
-      .withHue((HSLColor.fromColor(mainColor).hue + 3.953523926) % 360)
-      .withSaturation((HSLColor.fromColor(mainColor).saturation * 0.5660010877)
-          .clamp(0.0, 1.0))
-      .withLightness(0.1.clamp(0.0, 1.0))
-      .toColor();
-  get inputBarColor => HSLColor.fromColor(backgroundColor)
-      .withHue((HSLColor.fromColor(backgroundColor).hue + 8.4) % 360)
-      .withSaturation((HSLColor.fromColor(backgroundColor).saturation * 0.732)
-          .clamp(0.0, 1.0))
-      .withLightness((HSLColor.fromColor(backgroundColor).lightness + 0.049)
-          .clamp(0.0, 1.0))
-      .toColor();
-  get messageBubbleColor => HSLColor.fromColor(backgroundColor)
-      .withHue((HSLColor.fromColor(backgroundColor).hue - 0.236) % 360)
-      .withSaturation(
-          (HSLColor.fromColor(backgroundColor).saturation * 0.79878633)
-              .clamp(0.0, 1.0))
-      .withLightness(
-          (HSLColor.fromColor(backgroundColor).lightness + 0.0784313725)
-              .clamp(0.0, 1.0))
-      .toColor();
+class AppColorPalette {
+  AppColorPalette(Color base)
+      : mainColor = base,
+        _mainHsl = HSLColor.fromColor(base);
+
+  final Color mainColor;
+  final HSLColor _mainHsl;
+
+  Color? _backgroundColor;
+  Color? _inputBarColor;
+  Color? _messageBubbleColor;
+
+  Color get primaryColor => mainColor;
+
+  Color get backgroundColor {
+    return _backgroundColor ??= _mainHsl
+        .withHue((_mainHsl.hue + 3.953523926) % 360)
+        .withSaturation((_mainHsl.saturation * 0.5660010877).clamp(0.0, 1.0))
+        .withLightness(0.1.clamp(0.0, 1.0))
+        .toColor();
+  }
+
+  Color get inputBarColor {
+    final bg = backgroundColor;
+    final bgHsl = HSLColor.fromColor(bg);
+    return _inputBarColor ??= bgHsl
+        .withHue((bgHsl.hue + 8.4) % 360)
+        .withSaturation((bgHsl.saturation * 0.732).clamp(0.0, 1.0))
+        .withLightness((bgHsl.lightness + 0.049).clamp(0.0, 1.0))
+        .toColor();
+  }
+
+  Color get messageBubbleColor {
+    final bg = backgroundColor;
+    final bgHsl = HSLColor.fromColor(bg);
+    return _messageBubbleColor ??= bgHsl
+        .withHue((bgHsl.hue - 0.236) % 360)
+        .withSaturation((bgHsl.saturation * 0.79878633).clamp(0.0, 1.0))
+        .withLightness((bgHsl.lightness + 0.0784313725).clamp(0.0, 1.0))
+        .toColor();
+  }
 }
 
 class _AppTextStyles {

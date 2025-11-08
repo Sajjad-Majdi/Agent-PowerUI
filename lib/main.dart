@@ -113,26 +113,30 @@ class _MainAppState extends State<MainApp> with WindowListener {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-
-      // ------------ Dark Theme ------------
-      theme: ThemeData(
-        useMaterial3: true,
-        brightness: Brightness.dark,
-        scaffoldBackgroundColor: AppTheme.colors.backgroundColor,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: AppTheme.colors.primaryColor,
-          brightness: Brightness.dark,
-          surface: AppTheme.colors.messageBubbleColor,
-        ),
-      ),
-      home: MultiBlocProvider(
-        providers: [
-          BlocProvider(create: (context) => ChatBloc()),
-        ],
-        child: ChatInterface(),
-      ),
+    return ValueListenableBuilder<bool>(
+      valueListenable: AppTheme.privacyModeNotifier,
+      builder: (context, isPrivacy, _) {
+        final palette = AppTheme.colors;
+        return MaterialApp(
+          debugShowCheckedModeBanner: false,
+          theme: ThemeData(
+            useMaterial3: true,
+            brightness: Brightness.dark,
+            scaffoldBackgroundColor: palette.backgroundColor,
+            colorScheme: ColorScheme.fromSeed(
+              seedColor: palette.primaryColor,
+              brightness: Brightness.dark,
+              surface: palette.messageBubbleColor,
+            ),
+          ),
+          home: MultiBlocProvider(
+            providers: [
+              BlocProvider(create: (context) => ChatBloc()),
+            ],
+            child: ChatInterface(),
+          ),
+        );
+      },
     );
   }
 }

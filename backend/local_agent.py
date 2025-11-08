@@ -26,13 +26,17 @@ class LocalAgent:
         self.system_prompt = Config.get_system_prompt()
         self.checkpointer = AsyncCompatibleSqliteSaver(
             sqlite3.connect(db_path, check_same_thread=False))
+        self._port = 8080
 
     def start_server(self):
         """Starts the llama-server.exe process"""
+        if self.is_running():
+            return
+
         command = [
             Config.llama_server_path,
-            '-m', f"{Config.models_folder}/{self.model_name}",
-            '--port', '8080',
+            '-m', os.path.join(Config.models_folder, self.model_name),
+            '--port', str(self._port),
             '-c', f"{self.context_window}",
             '--n-gpu-layers', '99',
             '--jinja'
@@ -47,7 +51,7 @@ class LocalAgent:
 
         # Create LLM connection
         self.llm = ChatOpenAI(
-            base_url="http://127.0.0.1:8080/v1",
+            base_url=f"http://127.0.0.1:{self._port}/v1",
             api_key="dummy",
             model=self.model_name.replace('.gguf', ''),
             temperature=0.7
@@ -55,12 +59,15 @@ class LocalAgent:
 
     def stop_server(self):
         """Terminates the running llama-server process"""
-        if self.llama_process and self.llama_process.poll() is None:
+        if self.is_running():
             self.llama_process.terminate()
             self.llama_process.wait()
             print("llama-server terminated.")
         else:
             print("No active llama-server process to terminate.")
+        self.llama_process = None
+        self.llm = None
+        self.agent = None
 
     def initialize_agent(self, tools: list):
         """Initialize agent with tools"""
@@ -117,3 +124,7 @@ class LocalAgent:
     def __exit__(self, exc_type, exc_val, exc_tb):
         """Context manager exit"""
         self.stop_server()
+
+    def is_running(self) -> bool:
+        """Return True if the llama.cpp server process is active."""
+        return self.llama_process is not None and self.llama_process.poll() is None

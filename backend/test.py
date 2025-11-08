@@ -82,7 +82,19 @@ def test_api_chat(message, session_id='session_1343', use_local=False):
             print(data)
 
 
+def test_api_local_start(model):
+    response = requests.post(
+        'http://localhost:5000/api/local/start',
+        json={'model': model}
+    )
+    print(response.json())
+
+
 if __name__ == '__main__':
-    # test_api_chat("what tools do you have?!", "test_5fegesf")
-    test_api_chat(
-        "use web browseing tool and search for the weather in Tehran tomorrow", "test_5fegesf")
+    from utils import initialize_local_agent
+    from local_agent import LocalAgent
+
+    model = "Qwen3-4B-Instruct-2507-Q4_K_M.gguf"
+    agent = LocalAgent(model_name=model)
+    agent.start_server()
+    # agent.send_message(" hi there")

@@ -68,6 +68,8 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
       _streamSubscription = ApiService.streamChat(
         message: trimmed,
         sessionId: sessionId,
+        useLocalAgent: event.useLocalAgent,
+        model: event.model,
       ).listen(
         (chunk) => add(_ChatStreamChunk(chunk)),
         onError: (error, stackTrace) => add(_ChatStreamError(error.toString())),

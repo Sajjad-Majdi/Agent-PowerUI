@@ -151,18 +151,88 @@ async def initialize_online_agent():
         return None
 
 
-def initialize_local_agent():
-    """Initialize the local agent with llama.cpp"""
-    global local_agent
+local_agent: Optional[LocalAgent] = None
+local_model_name: Optional[str] = None
 
-    try:
-        model_name = "Qwen3-4B-Instruct-2507-Q4_K_M.gguf"
-        local_agent = LocalAgent(model_name=model_name, context_window=8192)
-        local_agent.start_server()
-        local_agent.initialize_agent(Config.get_default_tools())
-        return True
-    except Exception:
-        return False
+
+def list_local_models() -> List[Dict[str, Any]]:
+    """Return available GGUF models with file sizes."""
+    models: List[Dict[str, Any]] = []
+    folder = Config.models_folder
+    if not os.path.exists(folder):
+        return models
+
+    for entry in os.listdir(folder):
+        if not entry.lower().endswith(".gguf"):
+            continue
+        file_path = os.path.join(folder, entry)
+        try:
+            size_bytes = os.path.getsize(file_path)
+        except OSError:
+            size_bytes = 0
+        models.append({"name": entry, "size_bytes": size_bytes})
+
+    models.sort(key=lambda m: m["name"])
+    return models
+
+
+def _resolve_model_name(preferred: Optional[str] = None) -> str:
+    """Return a valid model name, preferring the provided option."""
+    models = list_local_models()
+    names = [m["name"] for m in models]
+    if preferred and preferred in names:
+        return preferred
+    if preferred and preferred not in names:
+        raise ValueError(f"Model '{preferred}' not found in local models")
+    if not names:
+        raise ValueError("No local models available")
+    return names[0]
+
+
+def initialize_local_agent(model_name: Optional[str] = None) -> LocalAgent:
+    """Initialize (or restart) the local agent with the requested model."""
+    global local_agent, local_model_name
+
+    selected_model = _resolve_model_name(model_name)
+
+    if local_agent and local_agent.is_running():
+        if local_model_name == selected_model:
+            return local_agent
+        stop_local_agent()
+
+    agent = LocalAgent(model_name=selected_model, context_window=8192)
+    agent.start_server()
+    agent.initialize_agent(Config.get_default_tools())
+
+    local_agent = agent
+    local_model_name = selected_model
+    return agent
+
+
+def stop_local_agent():
+    """Terminate the running local agent if present."""
+    global local_agent, local_model_name
+    if local_agent:
+        try:
+            local_agent.stop_server()
+        except Exception as exc:
+            print(f"Error stopping local agent: {exc}")
+    local_agent = None
+    local_model_name = None
+
+
+def get_local_agent() -> Optional[LocalAgent]:
+    """Return the current LocalAgent instance if running."""
+    return local_agent
+
+
+def get_local_agent_status() -> Dict[str, Any]:
+    """Return running status information for the local agent."""
+    running = local_agent.is_running() if local_agent else False
+    return {
+        "running": running,
+        "model": local_model_name if running else None,
+    }
 
 
 def create_mcp_progress_tracker() -> Dict[str, Any]:

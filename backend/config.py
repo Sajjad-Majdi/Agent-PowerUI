@@ -4,6 +4,7 @@ from datetime import datetime
 from typing import Literal
 
 backend_directory = os.path.dirname(__file__)
+project_root = os.path.dirname(backend_directory)
 
 
 class Config:
@@ -17,8 +18,9 @@ class Config:
     DEFAULT_GEMINI_MODEL: Literal["gemini-2.5-flash-lite",
                                   "gemini-2.5-flash", "gemini-2.5-pro"] = "gemini-2.5-flash"
 
-    models_folder = "C:/Users/Sajjad/Desktop/persoanal assistant/resources/models"
-    llama_server_path = "C:/Users/Sajjad/Desktop/persoanal assistant/resources/llamacpp/llama-server.exe"
+    models_folder = os.path.join(project_root, 'resources', 'models')
+    llama_server_path = os.path.join(
+        project_root, 'resources', 'llamacpp', 'llama-server.exe')
     db_path = os.path.join(backend_directory, 'data', 'chat_storage.db')
 
     memory_path = os.path.join(backend_directory, 'memory', 'fact.json')
