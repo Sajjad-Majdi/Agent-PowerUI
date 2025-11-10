@@ -82,7 +82,40 @@ Remember: You're not just gathering information, you're actively interacting wit
 
 class MCPAgent:
     def __init__(self, model_name: str = "gemini-2.5-flash", mcp_config: dict = None, system_prompt: str = ""):
-        self.model = init_chat_model(model=f"google_genai:{model_name}")
+        """
+        Initialize MCP Agent. Automatically uses local llama server if running, 
+        otherwise falls back to Gemini.
+
+        Args:
+            model_name: Name of the Gemini model (only used if local agent is not running)
+            mcp_config: MCP server configuration dictionary
+            system_prompt: System prompt for the agent
+        """
+        # Check if local agent is running and use its LLM instead of Gemini
+        try:
+            from utils import get_local_agent
+            local_agent = get_local_agent()
+
+            if local_agent and local_agent.is_running():
+                # Use the local llama server
+                self.model = ChatOpenAI(
+                    base_url=f"http://127.0.0.1:{local_agent._port}/v1",
+                    api_key="dummy",
+                    model=local_agent.model_name.replace('.gguf', ''),
+                    temperature=0.7
+                )
+                print(
+                    f"[MCPAgent] Using local llama server: {local_agent.model_name}")
+            else:
+                # Fall back to Gemini
+                self.model = init_chat_model(
+                    model=f"google_genai:{model_name}")
+                print(f"[MCPAgent] Using Gemini model: {model_name}")
+        except Exception as e:
+            # If anything fails, fall back to Gemini
+            self.model = init_chat_model(model=f"google_genai:{model_name}")
+            print(f"[MCPAgent] Fallback to Gemini due to error: {e}")
+
         self.mcp_config = mcp_config
         self.system_prompt = system_prompt
         self.checkpointer = MemorySaver()

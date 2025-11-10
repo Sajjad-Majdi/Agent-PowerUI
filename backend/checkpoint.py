@@ -12,7 +12,8 @@ class AsyncCompatibleSqliteSaver(SqliteSaver):
 
     async def alist(self, config, *, filter=None, before=None, limit=None) -> AsyncIterator:
         rows = await asyncio.to_thread(
-            lambda: list(super().list(config, filter=filter, before=before, limit=limit))
+            lambda: list(super().list(config, filter=filter,
+                         before=before, limit=limit))
         )
         for row in rows:
             yield row
@@ -29,4 +30,3 @@ class AsyncCompatibleSqliteSaver(SqliteSaver):
 
     async def adelete_thread(self, thread_id: str) -> None:
         await asyncio.to_thread(super().delete_thread, thread_id)
-

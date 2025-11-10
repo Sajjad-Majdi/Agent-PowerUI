@@ -16,9 +16,36 @@ from utils import (
 import json
 import asyncio
 import os
+import sys
 import warnings
 import threading
 import queue as queue_module
+
+
+class _SafeStream:
+    """Wrap a text stream so that OSError writes are silently ignored."""
+
+    def __init__(self, wrapped):
+        self._wrapped = wrapped
+
+    def write(self, data):
+        try:
+            return self._wrapped.write(data)
+        except OSError:
+            return len(data)
+
+    def flush(self):
+        try:
+            return self._wrapped.flush()
+        except OSError:
+            return None
+
+    def __getattr__(self, item):
+        return getattr(self._wrapped, item)
+
+
+sys.stdout = _SafeStream(sys.stdout)
+sys.stderr = _SafeStream(sys.stderr)
 
 # Suppress MCP schema warnings
 warnings.filterwarnings('ignore')
@@ -195,22 +222,6 @@ def stop_chat():
             pass
 
     return jsonify({'status': 'stopping'})
-
-
-@app.route('/api/initialize_local_agent', methods=['POST'])
-def initialize_local_agent_route():
-    """Initialize the local agent with llama.cpp"""
-    global local_agent
-    data = request.json or {}
-    model = data.get('model')
-    try:
-        local_agent = init_local_agent(model_name=model)
-        status = get_local_agent_status()
-        return jsonify({'message': 'Local agent initialized', 'status': status})
-    except ValueError as e:
-        return jsonify({'error': str(e)}), 400
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
 
 
 @app.route('/api/local/start', methods=['POST'])

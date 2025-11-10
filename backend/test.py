@@ -1,3 +1,4 @@
+import time
 import asyncio
 from flask import Config
 from flask.wrappers import json
@@ -90,11 +91,49 @@ def test_api_local_start(model):
     print(response.json())
 
 
+def test_api_local_stop():
+    response = requests.post(
+        'http://localhost:5000/api/local/stop'
+    )
+    print(response.json())
+
+
+def test_api_chat_local(message, session_id='local_session_1'):
+    response = requests.post(
+        'http://localhost:5000/api/chat/local',
+        json={'message': message, 'session_id': session_id},
+        stream=True
+    )
+
+    for line in response.iter_lines():
+        if line:
+            data = line.decode('utf-8')
+            print(data)
+
+
 if __name__ == '__main__':
-    from utils import initialize_local_agent
-    from local_agent import LocalAgent
 
     model = "Qwen3-4B-Instruct-2507-Q4_K_M.gguf"
-    agent = LocalAgent(model_name=model)
-    agent.start_server()
-    # agent.send_message(" hi there")
+
+    CYAN = '\033[96m'
+    GREEN = '\033[92m'
+    YELLOW = '\033[93m'
+    RED = '\033[91m'
+    MAGENTA = '\033[95m'
+    RESET = '\033[0m'
+    BOLD = '\033[1m'
+
+    for i in range(3):
+        print(f"\n{CYAN}{BOLD}{'='*50}{RESET}")
+        print(f"{GREEN}{BOLD}Iteration {i+1}: Starting local agent server...{RESET}")
+        print(f"{CYAN}{BOLD}{'='*50}{RESET}")
+        test_api_local_start(model)
+
+        print(f"\n{YELLOW}⏳ Waiting 4 seconds...{RESET}")
+        time.sleep(4)
+
+        print(f"\n{RED}{BOLD}Iteration {i+1}: Stopping local agent server...{RESET}")
+        test_api_local_stop()
+
+        print(f"\n{MAGENTA}⏱️  Waiting 1 second before next iteration...{RESET}")
+        time.sleep(1)

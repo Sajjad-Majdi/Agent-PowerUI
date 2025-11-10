@@ -441,22 +441,102 @@ class ApiService {
 }
 
 void main() async {
-  final sessionId = 'test_532349';
-  final response = ApiService.streamChat(
-      message:
-          'use the browsing tool and search for the weather in Tehran tomorrow',
-      sessionId: sessionId);
-  await for (final event in response) {
-    final type = event['type'];
-    final content = event['content'];
-    if (content != null) {
-      if (type == 'tool_message') {
-        print('[$type] ${content.substring(0, 100)}...');
-      } else {
-        print('[$type] $content');
+  // ANSI color codes for terminal output
+  const String cyan = '\x1B[36m';
+  const String green = '\x1B[32m';
+  const String yellow = '\x1B[33m';
+  const String red = '\x1B[31m';
+  const String magenta = '\x1B[35m';
+  const String bold = '\x1B[1m';
+  const String reset = '\x1B[0m';
+
+  print('${cyan}${bold}Waiting for backend to be ready...${reset}');
+  await ApiService.ensureBackendReady();
+  print('${green}✓ Backend is ready!${reset}\n');
+
+  // Get available models
+  print('${cyan}Fetching available models...${reset}');
+  final modelsResult = await ApiService.listLocalModels();
+  if (modelsResult.models.isEmpty) {
+    print('${red}No local models found!${reset}');
+    return;
+  }
+
+  final model = modelsResult.models.first.name;
+  print('${green}Selected model: $model${reset}\n');
+
+  // Test start/stop/chat cycle 3 times
+  for (int i = 0; i < 3; i++) {
+    print('${cyan}${bold}${'=' * 50}${reset}');
+    print(
+        '${green}${bold}Iteration ${i + 1}: Starting local agent server...${reset}');
+    print('${cyan}${bold}${'=' * 50}${reset}');
+
+    try {
+      final status = await ApiService.startLocalModel(model);
+      print(
+          '${green}✓ Server started! Running: ${status.running}, Model: ${status.model}${reset}');
+    } catch (e) {
+      print('${red}✗ Failed to start server: $e${reset}');
+      continue;
+    }
+
+    print(
+        '\n${yellow}⏳ Waiting 4 seconds for server to fully initialize...${reset}');
+    await Future.delayed(const Duration(seconds: 4));
+
+    // Send a test message
+    print('\n${cyan}${bold}Sending test message to local agent...${reset}');
+    final sessionId = 'test_iteration_${i + 1}';
+    try {
+      final response = ApiService.streamChat(
+        message:
+            'Hello! This is test iteration ${i + 1}. Tell me a very short fun fact about cats.',
+        sessionId: sessionId,
+        useLocalAgent: true,
+      );
+
+      await for (final event in response) {
+        final type = event['type'];
+        final content = event['content'];
+
+        if (type == 'ai_message' && content != null) {
+          print('${green}[AI Response] $content${reset}');
+        } else if (type == 'tool_call' && content != null) {
+          final toolName = content['name'] ?? 'unknown';
+          print('${yellow}[Tool Call] $toolName${reset}');
+        } else if (type == 'tool_message' && content != null) {
+          final preview = content.toString().length > 100
+              ? '${content.toString().substring(0, 100)}...'
+              : content.toString();
+          print('${cyan}[Tool Output] $preview${reset}');
+        } else if (type == 'complete') {
+          print('${green}[Complete]${reset}');
+        } else if (type == 'error') {
+          print('${red}[Error] $content${reset}');
+        }
       }
-    } else {
-      print('[$type]');
+    } catch (e) {
+      print('${red}✗ Error during chat: $e${reset}');
+    }
+
+    print(
+        '\n${red}${bold}Iteration ${i + 1}: Stopping local agent server...${reset}');
+    try {
+      final status = await ApiService.stopLocalModel();
+      print('${red}✓ Server stopped! Running: ${status.running}${reset}');
+    } catch (e) {
+      print('${red}✗ Failed to stop server: $e${reset}');
+    }
+
+    if (i < 2) {
+      print(
+          '\n${magenta}⏱️  Waiting 1 second before next iteration...${reset}');
+      await Future.delayed(const Duration(seconds: 1));
     }
   }
+
+  print('\n${cyan}${bold}${'=' * 50}${reset}');
+  print('${green}${bold}All tests completed!${reset}');
+  print('${cyan}${bold}${'=' * 50}${reset}');
 }

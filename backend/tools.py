@@ -113,10 +113,13 @@ def browse_web(query: str) -> str:
         mcp_servers = Config.get_enabled_mcp_servers()
 
         system_prompt = web_browsing_prompt
+
+        # MCPAgent will automatically check and use local agent if running
         agent = MCPAgent(
             mcp_config=mcp_servers,
             system_prompt=system_prompt
         )
+
         print("------------ agent session ------------")
         tracker = create_mcp_progress_tracker()
 

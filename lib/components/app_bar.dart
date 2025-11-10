@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:iconsax/iconsax.dart';
 import '/services/api_service.dart';
 import '/theme.dart';
 
@@ -227,8 +228,6 @@ class ModelPicker extends StatelessWidget {
               value: model.name,
               title: info.displayName,
               subtitle: model.humanReadableSize,
-              showTerminate: localRunning && activeLocalModel == model.name,
-              onTerminate: onTerminateLocal,
             );
           },
         ).toList(),
@@ -324,15 +323,11 @@ class _PickerItem {
   final String value;
   final String title;
   final String? subtitle;
-  final bool showTerminate;
-  final VoidCallback? onTerminate;
 
   const _PickerItem({
     required this.value,
     required this.title,
     this.subtitle,
-    this.showTerminate = false,
-    this.onTerminate,
   });
 }
 
@@ -385,6 +380,7 @@ class _PickerContainer extends StatelessWidget {
           shadowColor: Colors.transparent,
           surfaceTintColor: Colors.transparent,
           offset: const Offset(-24, 28),
+          tooltip: '',
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -457,25 +453,6 @@ class _PickerContainer extends StatelessWidget {
                                       ],
                                     ),
                                   ),
-                                  if (item.showTerminate &&
-                                      item.onTerminate != null)
-                                    Tooltip(
-                                      message: 'Terminate local model',
-                                      child: IconButton(
-                                        onPressed: () {
-                                          Navigator.pop(context);
-                                          item.onTerminate?.call();
-                                        },
-                                        icon: const Icon(
-                                          Icons.power_settings_new,
-                                          size: 18,
-                                        ),
-                                        padding: const EdgeInsets.all(6),
-                                        constraints: const BoxConstraints(),
-                                        color:
-                                            Colors.white.withValues(alpha: 0.9),
-                                      ),
-                                    ),
                                 ],
                               ),
                             ),
@@ -517,17 +494,11 @@ class _PrivacyControls extends StatelessWidget {
     return Center(
       child: IconButton(
         onPressed: localBusy ? null : onTogglePrivacyMode,
-        icon: localBusy
-            ? const SizedBox(
-                width: 20,
-                height: 20,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              )
-            : Icon(
-                privacyMode ? Icons.lock : Icons.lock_open,
-                size: 24,
-                color: Colors.white.withValues(alpha: 0.9),
-              ),
+        icon: Icon(
+          privacyMode ? Iconsax.shield_tick : Iconsax.shield_cross,
+          size: 24,
+          color: Colors.white.withValues(alpha: 0.9),
+        ),
         tooltip: 'Privacy Mode',
         style: IconButton.styleFrom(
           backgroundColor: privacyMode

@@ -128,9 +128,14 @@ class _ChatInterfaceState extends State<ChatInterface> {
   Future<void> _loadLocalModels() async {
     try {
       final result = await ApiService.listLocalModels();
+      print(
+          'Loaded local models: ${result.models.map((m) => m.name).toList()}');
       if (!mounted) return;
       final models = result.models;
+      print('Local models: ${models.map((m) => m.name).toList()}');
       final status = result.status;
+      print('Local agent status: running=${status.running}'
+          ' model=${status.model}');
       setState(() {
         _localModels = models;
         _localStatus = status;
@@ -286,7 +291,7 @@ class _ChatInterfaceState extends State<ChatInterface> {
                         bottomRight: Radius.circular(24),
                       ),
                       child: StylishAppBar(
-                        title: 'G Agent',
+                        title: _privacyMode ? 'Private Agent' : 'G Agent',
                         geminiModels: _geminiModels,
                         localModels: _localModels,
                         activeGeminiModel: _activeGeminiModel,
