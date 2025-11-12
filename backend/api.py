@@ -93,7 +93,10 @@ def chat():
                 agent_done = False
 
                 while not agent_done:
+                    # Check cancellation immediately at the start of each iteration
                     if cancel_event.is_set():
+                        print(
+                            f"[API] Cancellation signal received for session {session_id}")
                         try:
                             agent_iter.close()
                         except Exception:
@@ -466,14 +469,8 @@ def toggle_mcp_server():
         # Save the state
         Config.set_mcp_state(mcp_state)
 
-        # Reload the online agent with updated tools
-        global online_agent, available_tools
-        if online_agent is not None:
-            tools = Config.get_default_tools()
-            online_agent.update_tools(tools)
-            available_tools = tools
-            print(
-                f"Agent tools reloaded after toggling {server_name} to {enabled}")
+        # No need to reload tools - browse_web checks enabled state at runtime
+        print(f"MCP server '{server_name}' toggled to {enabled}")
 
         return jsonify({'message': f"MCP server '{server_name}' toggled successfully", 'enabled': enabled})
     except Exception as e:

@@ -5,6 +5,11 @@ from langgraph.prebuilt import create_react_agent
 from langgraph.checkpoint.memory import MemorySaver
 from langchain_core.tools import tool
 from langchain_openai import ChatOpenAI
+from langgraph.graph import StateGraph, MessagesState, START, END
+from langgraph.prebuilt import ToolNode
+from typing import Annotated
+from langchain_core.messages import BaseMessage
+from langgraph.graph.message import add_messages
 
 from config import Config
 import asyncio
@@ -119,9 +124,126 @@ class MCPAgent:
         self.mcp_config = mcp_config
         self.system_prompt = system_prompt
         self.checkpointer = MemorySaver()
+        self.agent = None
+        self.thread_id = f"mcp-{uuid.uuid4().hex}"
+
+    def print_state(self):
+        if self.agent is not None:
+            state_snapshot = self.agent.get_state(
+                {"configurable": {"thread_id": self.thread_id}})
+            messages = state_snapshot.values.get("messages", [])
+
+            print("\033[96m", "\n" + "="*60, "\033[0m")
+            print("\033[96m📊 AGENT STATE - MESSAGE HISTORY\033[0m")
+            print("\033[96m", "="*60, "\033[0m")
+
+            for i, msg in enumerate(messages, 1):
+                # Color codes
+                colors = {
+                    "human": "\033[94m",      # Blue
+                    "ai": "\033[92m",         # Green
+                    "tool": "\033[93m",       # Yellow
+                    "system": "\033[95m",     # Magenta
+                }
+                reset = "\033[0m"
+
+                msg_type = msg.type
+                color = colors.get(msg_type, "\033[97m")  # Default white
+
+                # Truncate content
+                content = str(msg.content)
+                max_length = 100
+                truncated = content[:max_length] + \
+                    "..." if len(content) > max_length else content
+
+                print(f"\n{color}[{i}] {msg_type.upper()}{reset}")
+                print(f"    {truncated}")
+
+                # Show tool call info if present
+                if hasattr(msg, "tool_calls") and msg.tool_calls:
+                    print(f"    🔧 Tool calls: {len(msg.tool_calls)}")
+
+            print("\n" + "="*60 + "\n")
+            return messages
+        else:
+            print("\033[91m❌ Agent not initialized\033[0m")
+            return None
+
+    def prune_old_tool_messages(self, messages, keep_last_n: int = 3):
+        """Remove tool messages older than the last N tool messages from message list"""
+        # Find indices of all tool messages
+        tool_message_indices = [
+            i for i, msg in enumerate(messages) if msg.type == "tool"
+        ]
+
+        if len(tool_message_indices) > keep_last_n:
+            # Identify indices to remove (all but last N tool messages)
+            indices_to_remove = set(tool_message_indices[:-keep_last_n])
+
+            # Filter out old tool messages
+            pruned_messages = [
+                msg for i, msg in enumerate(messages) if i not in indices_to_remove
+            ]
+            return pruned_messages
+
+        return messages
+
+    def create_custom_agent_graph(self, tools):
+        """Create a custom ReAct agent graph with message pruning"""
+
+        def prune_messages_reducer(left: list[BaseMessage], right: list[BaseMessage]) -> list[BaseMessage]:
+            """Custom reducer that prunes old tool messages while adding new messages"""
+            # First, add new messages using default behavior
+            merged = add_messages(left, right)
+
+            # Then prune old tool messages
+            tool_indices = [i for i, msg in enumerate(
+                merged) if msg.type == "tool"]
+
+            if len(tool_indices) > 3:
+                # Keep only last 3 tool messages
+                indices_to_remove = set(tool_indices[:-3])
+                merged = [msg for i, msg in enumerate(
+                    merged) if i not in indices_to_remove]
+
+            return merged
+
+        # Define state with custom reducer
+        class AgentState(MessagesState):
+            messages: Annotated[list[BaseMessage], prune_messages_reducer]
+
+        # Define the agent node
+        def call_model(state: AgentState):
+            messages = state["messages"]
+            response = self.model.bind_tools(tools).invoke(messages)
+            return {"messages": [response]}
+
+        # Define conditional edge logic
+        def should_continue(state: AgentState):
+            messages = state["messages"]
+            last_message = messages[-1]
+            if hasattr(last_message, "tool_calls") and last_message.tool_calls:
+                return "tools"
+            return END
+
+        # Build the graph
+        workflow = StateGraph(AgentState)
+
+        # Add nodes
+        workflow.add_node("agent", call_model)
+        workflow.add_node("tools", ToolNode(tools))
+
+        # Add edges
+        workflow.add_edge(START, "agent")
+        workflow.add_conditional_edges("agent", should_continue, {
+                                       "tools": "tools", END: END})
+        workflow.add_edge("tools", "agent")
+
+        # Compile with checkpointer
+        return workflow.compile(checkpointer=self.checkpointer)
 
     async def run_agent(self, prompt: str, thread_id: str | None = None):
-        thread_id = thread_id or f"mcp-{uuid.uuid4().hex}"
+        thread_id = thread_id or self.thread_id
 
         client = MultiServerMCPClient(self.mcp_config)
 
@@ -131,13 +253,11 @@ class MCPAgent:
         async with client.session(mcp_name) as session:
             tools = await load_mcp_tools(session)
             print(f"got \033[91m{len(tools)}\033[0m MCP tools")
-            agent = create_react_agent(
-                self.model,
-                tools,
-                prompt=self.system_prompt,
-                checkpointer=self.checkpointer
-            )
-            async for step in agent.astream(
+
+            # Create custom agent with pruning
+            self.agent = self.create_custom_agent_graph(tools)
+
+            async for step in self.agent.astream(
                 {"messages": [{"role": "user", "content": prompt}]},
                 stream_mode="values",
                 config={
@@ -146,6 +266,7 @@ class MCPAgent:
                 }
             ):
                 last_message = step["messages"][-1]
+                print("Actual type:", last_message.type)
 
                 def proccess_msg(message):
                     if hasattr(message, "tool_calls") and message.tool_calls:
@@ -181,16 +302,26 @@ class MCPAgent:
                     yield result
 
 
-# if __name__ == "__main__":
-#     async def run():
-#         system_prompt = web_browsing_prompt
-#         agent = MCPAgent(
-#             mcp_config=Config.get_mcp_servers(),
-#             system_prompt=system_prompt
-#         )
-#         async for response in agent.run_agent("open zarfilm.com and check for new latest sci fi movies and list them for me"):
-#             print(f"\033[91m{response['type']}: \033[0m",
-#                   response["content"])
-#             print("--------------------------------------")
+if __name__ == "__main__":
+    async def run():
+        system_prompt = web_browsing_prompt
+        try:
+            agent = MCPAgent(
+                mcp_config=Config.get_mcp_servers(),
+                system_prompt=system_prompt
+            )
+            async for response in agent.run_agent("go to zarfilm website and find latest sci fi movies"):
+                # Truncate content to first 100 chars
+                content = str(response["content"])
+                truncated_content = content[:100] + \
+                    "..." if len(content) > 100 else content
+                print(f"\033[91m{response['type']}: \033[0m",
+                      truncated_content)
+                print("--------------------------------------")
+        except Exception as e:
 
-#     asyncio.run(run())
+            agent.print_state()
+        finally:
+            agent.print_state()
+
+    asyncio.run(run())

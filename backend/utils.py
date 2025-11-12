@@ -221,7 +221,7 @@ def stop_local_agent():
     local_model_name = None
 
 
-def get_local_agent() -> Optional[LocalAgent]:
+def get_local_agent() -> LocalAgent:
     """Return the current LocalAgent instance if running."""
     return local_agent
 

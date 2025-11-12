@@ -282,7 +282,9 @@ class LocalAgent:
         try:
             for step in self.agent.stream({"messages": [
                     {"role": "user", "content": message}]}, config=session_config, stream_mode="values"):
+                # Check cancellation BEFORE processing each step
                 if cancel_event is not None and cancel_event.is_set():
+                    print("[LocalAgent] Cancellation detected, stopping stream")
                     break
                 last_message = step["messages"][-1]
                 yield last_message
