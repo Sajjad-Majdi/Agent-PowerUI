@@ -81,6 +81,22 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "3.0.6"
+  desktop_drop:
+    dependency: "direct main"
+    description:
+      name: desktop_drop
+      sha256: d55a010fe46c8e8fcff4ea4b451a9ff84a162217bdb3b2a0aa1479776205e15d
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.4.4"
+  dotted_border:
+    dependency: "direct main"
+    description:
+      name: dotted_border
+      sha256: "108837e11848ca776c53b30bc870086f84b62ed6e01c503ed976e8f8c7df9c04"
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.1.0"
   fake_async:
     dependency: transitive
     description:
@@ -89,6 +105,70 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.3.3"
+  file_selector:
+    dependency: "direct main"
+    description:
+      name: file_selector
+      sha256: "1d2fde93dddf634a9c3c0faa748169d7ac0d83757135555707e52f02c017ad4f"
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.9.5"
+  file_selector_android:
+    dependency: transitive
+    description:
+      name: file_selector_android
+      sha256: "1ce58b609289551f8ec07265476720e77d19764339cc1d8e4df3c4d34dac6499"
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.5.1+17"
+  file_selector_ios:
+    dependency: transitive
+    description:
+      name: file_selector_ios
+      sha256: fe9f52123af16bba4ad65bd7e03defbbb4b172a38a8e6aaa2a869a0c56a5f5fb
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.5.3+2"
+  file_selector_linux:
+    dependency: transitive
+    description:
+      name: file_selector_linux
+      sha256: "54cbbd957e1156d29548c7d9b9ec0c0ebb6de0a90452198683a7d23aed617a33"
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.9.3+2"
+  file_selector_macos:
+    dependency: transitive
+    description:
+      name: file_selector_macos
+      sha256: "19124ff4a3d8864fdc62072b6a2ef6c222d55a3404fe14893a3c02744907b60c"
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.9.4+4"
+  file_selector_platform_interface:
+    dependency: transitive
+    description:
+      name: file_selector_platform_interface
+      sha256: "35e0bd61ebcdb91a3505813b055b09b79dfdc7d0aee9c09a7ba59ae4bb13dc85"
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.7.0"
+  file_selector_web:
+    dependency: transitive
+    description:
+      name: file_selector_web
+      sha256: c4c0ea4224d97a60a7067eca0c8fd419e708ff830e0c83b11a48faf566cec3e7
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.9.4+2"
+  file_selector_windows:
+    dependency: transitive
+    description:
+      name: file_selector_windows
+      sha256: "320fcfb6f33caa90f0b58380489fc5ac05d99ee94b61aa96ec2bff0ba81d3c2b"
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.9.3+4"
   fixnum:
     dependency: transitive
     description:
@@ -352,6 +432,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.9.1"
+  path_drawing:
+    dependency: transitive
+    description:
+      name: path_drawing
+      sha256: bbb1934c0cbb03091af082a6389ca2080345291ef07a5fa6d6e078ba8682f977
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.0.1"
   path_parsing:
     dependency: transitive
     description:

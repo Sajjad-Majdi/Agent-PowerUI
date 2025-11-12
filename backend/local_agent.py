@@ -65,10 +65,10 @@ class LocalAgent:
             raise RuntimeError(
                 f"Port {self._port} still active before start; aborting to avoid orphan attachment.")
 
-        model_path = os.path.join(Config.models_folder, self.model_name)
+        model_path = os.path.join(Config.get_models_folder(), self.model_name)
 
         command = [
-            Config.llama_server_path,
+            Config.get_llama_server_path(),
             '-m', model_path,
             '--port', str(self._port),
             '-c', f"{self.context_window}",
@@ -335,7 +335,7 @@ if __name__ == "__main__":
     # print(f"Process terminated with PID: {process.pid}")
     # process.kill()
     # process.wait()
-    MODEL = os.path.join(Config.models_folder,
+    MODEL = os.path.join(Config.get_models_folder(),
                          "Qwen3-4B-Instruct-2507-Q4_K_M.gguf")
     agent = LocalAgent(model_name=MODEL)
     # agent.start_server()

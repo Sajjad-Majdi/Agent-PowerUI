@@ -438,6 +438,121 @@ class ApiService {
     }
     throw Exception('Failed to toggle MCP server: ${response.statusCode}');
   }
+
+  static Future<String> getInstructions() async {
+    await ensureBackendReady();
+    final response = await http.get(Uri.parse('$baseUrl/instructions'));
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      return data['instructions'] ?? '';
+    }
+    throw Exception('Failed to get instructions');
+  }
+
+  static Future<void> setInstructions(String instructions) async {
+    await ensureBackendReady();
+    final response = await http.post(
+      Uri.parse('$baseUrl/instructions'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'instructions': instructions}),
+    );
+    if (response.statusCode != 200) {
+      throw Exception('Failed to set instructions: ${response.statusCode}');
+    }
+  }
+
+  static Future<Map<String, dynamic>> getGeminiApiKeyStatus() async {
+    await ensureBackendReady();
+    final response = await http.get(Uri.parse('$baseUrl/gemini_api_key'));
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    }
+    throw Exception('Failed to get API key status');
+  }
+
+  static Future<void> setGeminiApiKey(String apiKey) async {
+    await ensureBackendReady();
+    final response = await http.post(
+      Uri.parse('$baseUrl/gemini_api_key'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'api_key': apiKey}),
+    );
+    if (response.statusCode != 200) {
+      final error = jsonDecode(response.body);
+      throw Exception(error['error'] ?? 'Failed to set API key');
+    }
+  }
+
+  static Future<Map<String, dynamic>> getPathConfig() async {
+    await ensureBackendReady();
+    final response = await http.get(Uri.parse('$baseUrl/paths'));
+    if (response.statusCode == 200) {
+      return Map<String, dynamic>.from(jsonDecode(response.body));
+    }
+    throw Exception('Failed to load path configuration');
+  }
+
+  static Future<Map<String, dynamic>> setPathConfig({
+    String? modelsFolder,
+    String? llamaServerPath,
+  }) async {
+    await ensureBackendReady();
+    final response = await http.post(
+      Uri.parse('$baseUrl/paths'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        if (modelsFolder != null) 'models_folder': modelsFolder,
+        if (llamaServerPath != null) 'llama_server_path': llamaServerPath,
+      }),
+    );
+    if (response.statusCode == 200) {
+      return Map<String, dynamic>.from(jsonDecode(response.body));
+    }
+    final body = jsonDecode(response.body);
+    throw Exception(body['error'] ?? 'Failed to update path configuration');
+  }
+
+  static Future<Map<String, dynamic>> importLocalModel({
+    required String path,
+  }) async {
+    await ensureBackendReady();
+    final response = await http.post(
+      Uri.parse('$baseUrl/models/import'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'path': path}),
+    );
+    if (response.statusCode == 200) {
+      return Map<String, dynamic>.from(jsonDecode(response.body));
+    }
+    Map<String, dynamic>? body;
+    try {
+      body = Map<String, dynamic>.from(jsonDecode(response.body));
+    } catch (_) {
+      // ignore parse issues
+    }
+    throw Exception(body?['error'] ?? 'Failed to import model');
+  }
+
+  static Future<Map<String, dynamic>> deleteLocalModel({
+    required String name,
+  }) async {
+    await ensureBackendReady();
+    final response = await http.post(
+      Uri.parse('$baseUrl/models/delete'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'name': name}),
+    );
+    if (response.statusCode == 200) {
+      return Map<String, dynamic>.from(jsonDecode(response.body));
+    }
+    Map<String, dynamic>? body;
+    try {
+      body = Map<String, dynamic>.from(jsonDecode(response.body));
+    } catch (_) {
+      // ignore parse issues
+    }
+    throw Exception(body?['error'] ?? 'Failed to delete model');
+  }
 }
 
 void main() async {

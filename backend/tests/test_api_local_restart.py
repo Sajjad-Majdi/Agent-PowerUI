@@ -5,7 +5,8 @@ import requests
 import subprocess
 import threading
 
-PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+PROJECT_ROOT = os.path.abspath(os.path.join(
+    os.path.dirname(__file__), "..", ".."))
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
@@ -43,9 +44,9 @@ def test_local_agent_restart():
     try:
         if not wait_for_server():
             raise RuntimeError("Backend server failed to start")
-        
+
         model = "Qwen3-4B-Instruct-2507-Q4_K_M.gguf"
-        
+
         # First start
         print("Starting first time...")
         resp = requests.post(
@@ -53,30 +54,34 @@ def test_local_agent_restart():
             json={"model": model},
             timeout=60
         )
-        print(f"First start status: {resp.status_code}, body: {resp.text[:200]}")
+        print(
+            f"First start status: {resp.status_code}, body: {resp.text[:200]}")
         assert resp.status_code == 200, f"First start failed: {resp.text}"
-        
+
         # Check status
-        resp = requests.get("http://localhost:5000/api/local/status", timeout=5)
+        resp = requests.get(
+            "http://localhost:5000/api/local/status", timeout=5)
         status1 = resp.json()
         print(f"Status after first start: {status1}")
         assert status1.get("running") == True
-        
+
         # Stop
         print("Stopping...")
-        resp = requests.post("http://localhost:5000/api/local/stop", timeout=30)
+        resp = requests.post(
+            "http://localhost:5000/api/local/stop", timeout=30)
         print(f"Stop status: {resp.status_code}, body: {resp.text[:200]}")
         assert resp.status_code == 200
-        
+
         # Check status after stop
-        resp = requests.get("http://localhost:5000/api/local/status", timeout=5)
+        resp = requests.get(
+            "http://localhost:5000/api/local/status", timeout=5)
         status2 = resp.json()
         print(f"Status after stop: {status2}")
         assert status2.get("running") == False
-        
+
         # Wait a bit for cleanup
         time.sleep(2)
-        
+
         # Second start - this is where it fails
         print("Starting second time...")
         resp = requests.post(
@@ -84,19 +89,21 @@ def test_local_agent_restart():
             json={"model": model},
             timeout=60
         )
-        print(f"Second start status: {resp.status_code}, body: {resp.text[:200]}")
+        print(
+            f"Second start status: {resp.status_code}, body: {resp.text[:200]}")
         if resp.status_code != 200:
             print(f"ERROR: Second start failed with: {resp.text}")
             raise AssertionError(f"Second start failed: {resp.text}")
-        
+
         # Check final status
-        resp = requests.get("http://localhost:5000/api/local/status", timeout=5)
+        resp = requests.get(
+            "http://localhost:5000/api/local/status", timeout=5)
         status3 = resp.json()
         print(f"Status after second start: {status3}")
         assert status3.get("running") == True
-        
+
         print("SUCCESS: Both starts worked!")
-        
+
     finally:
         # Cleanup
         try:
@@ -111,6 +118,3 @@ def test_local_agent_restart():
 
 if __name__ == "__main__":
     test_local_agent_restart()
-
-
-

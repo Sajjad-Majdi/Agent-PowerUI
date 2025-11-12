@@ -25,6 +25,9 @@ dependencies:
   langchain: ^0.7.9
   langchain_google: ^0.6.5+2
   http: ^1.2.0
+  file_selector: ^0.9.3
+  desktop_drop: ^0.4.3
+  dotted_border: ^2.1.0
   
 
 

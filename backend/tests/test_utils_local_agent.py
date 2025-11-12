@@ -27,7 +27,7 @@ class UtilsLocalAgentTests(unittest.TestCase):
     def setUpClass(cls):
         from backend import config
 
-        cls.models_folder = config.Config.models_folder
+        cls.models_folder = config.Config.get_models_folder()
         os.makedirs(cls.models_folder, exist_ok=True)
         cls.model_path = os.path.join(cls.models_folder, cls.MODEL_NAME)
         with open(cls.model_path, "wb") as handle:

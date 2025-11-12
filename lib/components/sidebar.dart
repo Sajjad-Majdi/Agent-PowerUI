@@ -2,16 +2,18 @@
 import 'package:iconsax/iconsax.dart';
 import '/services/api_service.dart';
 import '/theme.dart';
-import 'settings_button.dart';
+import 'settings/settings_button.dart';
 
 class Sidebar extends StatefulWidget {
   final VoidCallback onNewChat;
   final Function(String) onSelectSession;
+  final VoidCallback? onSettingsClosed;
 
   const Sidebar({
     Key? key,
     required this.onNewChat,
     required this.onSelectSession,
+    this.onSettingsClosed,
   }) : super(key: key);
 
   @override
@@ -147,7 +149,9 @@ class _SidebarState extends State<Sidebar> {
           Container(
             width: double.infinity,
             margin: EdgeInsets.all(5),
-            child: SettingsButton(),
+            child: SettingsButton(
+              onSettingsClosed: widget.onSettingsClosed,
+            ),
           )
         ],
       ),

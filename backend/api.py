@@ -16,6 +16,7 @@ from utils import (
 import json
 import asyncio
 import os
+import shutil
 import sys
 import warnings
 import threading
@@ -488,7 +489,210 @@ def health_check():
     })
 
 
+@app.route('/api/instructions', methods=['GET'])
+def get_instructions():
+    """Get saved agent instructions"""
+    try:
+        instructions = Config.get_instructions()
+        return jsonify({'instructions': instructions})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/instructions', methods=['POST'])
+def set_instructions():
+    """Save agent instructions"""
+    try:
+        data = request.json or {}
+        instructions = data.get('instructions', '')
+        Config.set_instructions(instructions)
+        return jsonify({'message': 'Instructions saved successfully'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/gemini_api_key', methods=['GET'])
+def get_gemini_api_key():
+    """Get saved Gemini API key status (masked)"""
+    try:
+        api_key = Config.get_gemini_api_key()
+        has_key = bool(api_key)
+        masked_key = ''
+        if has_key and len(api_key) > 8:
+            masked_key = api_key[:4] + '...' + api_key[-4:]
+        elif has_key:
+            masked_key = '****'
+        return jsonify({'has_key': has_key, 'masked_key': masked_key})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/gemini_api_key', methods=['POST'])
+def set_gemini_api_key():
+    """Save Gemini API key and reinitialize online agent"""
+    try:
+        data = request.json or {}
+        api_key = data.get('api_key', '').strip()
+
+        if not api_key:
+            return jsonify({'error': 'API key is required'}), 400
+
+        # Save the key
+        Config.set_gemini_api_key(api_key)
+
+        # Update environment variable for immediate use
+        os.environ['GOOGLE_API_KEY'] = api_key
+
+        # Reinitialize online agent with new key
+        global online_agent
+        try:
+            from utils import initialize_online_agent
+            online_agent = asyncio.run(initialize_online_agent())
+            return jsonify({'message': 'API key saved and agent reinitialized successfully'})
+        except Exception as e:
+            return jsonify({'error': f'API key saved but agent initialization failed: {str(e)}'}), 500
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/paths', methods=['GET'])
+def get_path_config():
+    """Return current model and binary paths along with defaults"""
+    try:
+        return jsonify(Config.get_path_config())
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/paths', methods=['POST'])
+def set_path_config():
+    """Update model folder or llama.cpp binary path overrides"""
+    try:
+        data = request.json or {}
+        if 'models_folder' in data:
+            Config.set_models_folder(data.get('models_folder') or '')
+        if 'llama_server_path' in data:
+            Config.set_llama_server_path(data.get('llama_server_path') or '')
+
+        return jsonify(Config.get_path_config())
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/models/import', methods=['POST'])
+def import_local_model_route():
+    """Copy a local .gguf file into the configured models folder."""
+    try:
+        data = request.json or {}
+        source_path = data.get('path')
+
+        print(f"[API] Import request received")
+        print(f"[API] Source path: {source_path}")
+
+        if not source_path:
+            print(f"[API] Error: No path provided")
+            return jsonify({'error': 'path is required'}), 400
+
+        if not os.path.isfile(source_path):
+            print(f"[API] Error: File not found at {source_path}")
+            print(f"[API] File exists check: {os.path.exists(source_path)}")
+            print(f"[API] Is file check: {os.path.isfile(source_path)}")
+            return jsonify({'error': f'File not found: {source_path}'}), 404
+
+        if not source_path.lower().endswith('.gguf'):
+            print(f"[API] Error: Not a .gguf file")
+            return jsonify({'error': 'File must be a .gguf model'}), 400
+
+        destination_dir = Config.get_models_folder()
+        print(f"[API] Destination directory: {destination_dir}")
+        os.makedirs(destination_dir, exist_ok=True)
+
+        filename = os.path.basename(source_path)
+        name, ext = os.path.splitext(filename)
+        dest_path = os.path.join(destination_dir, filename)
+        counter = 1
+        while os.path.exists(dest_path):
+            dest_path = os.path.join(destination_dir, f"{name}_{counter}{ext}")
+            counter += 1
+
+        print(f"[API] Copying {source_path} -> {dest_path}")
+        shutil.copy2(source_path, dest_path)
+        print(f"[API] Copy successful!")
+
+        return jsonify({
+            'message': 'Model imported',
+            'filename': os.path.basename(dest_path),
+            'destination': dest_path,
+        })
+    except Exception as e:
+        print(f"[API] Exception during import: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/models/delete', methods=['POST'])
+def delete_local_model_route():
+    """Delete a local .gguf file from the configured models folder."""
+    try:
+        data = request.json or {}
+        model_name = data.get('name')
+
+        print(f"[API] Delete request received for model: {model_name}")
+
+        if not model_name:
+            print(f"[API] Error: No model name provided")
+            return jsonify({'error': 'name is required'}), 400
+
+        models_dir = Config.get_models_folder()
+        model_path = os.path.join(models_dir, model_name)
+
+        print(f"[API] Model path: {model_path}")
+
+        if not os.path.isfile(model_path):
+            print(f"[API] Error: Model file not found at {model_path}")
+            return jsonify({'error': f'Model not found: {model_name}'}), 404
+
+        if not model_path.lower().endswith('.gguf'):
+            print(f"[API] Error: Not a .gguf file")
+            return jsonify({'error': 'File must be a .gguf model'}), 400
+
+        # Check if model is currently running
+        try:
+            local_agent_status = get_local_agent_status()
+            if local_agent_status.get('running') and local_agent_status.get('model') == model_name:
+                print(f"[API] Error: Model is currently running")
+                return jsonify({'error': 'Cannot delete a running model. Please stop it first.'}), 400
+        except Exception as status_err:
+            print(
+                f"[API] Warning: Could not check local agent status: {status_err}")
+
+        print(f"[API] Deleting {model_path}")
+        os.remove(model_path)
+        print(f"[API] Delete successful!")
+
+        return jsonify({
+            'message': 'Model deleted successfully',
+            'name': model_name,
+        })
+    except Exception as e:
+        print(f"[API] Exception during delete: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+
 if __name__ == '__main__':
     print("Starting Flask server...")
+
+    # Set API key from config before initializing agent
+    api_key = Config.get_gemini_api_key()
+    if api_key:
+        os.environ['GOOGLE_API_KEY'] = api_key
+        print("Loaded Gemini API key from config")
+    elif not os.environ.get('GOOGLE_API_KEY'):
+        print("WARNING: No Gemini API key found. Set GOOGLE_API_KEY or configure via settings.")
+
     online_agent = asyncio.run(init_online_agent())
     app.run(debug=True, host='0.0.0.0', port=5000, use_reloader=False)

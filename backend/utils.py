@@ -158,7 +158,7 @@ local_model_name: Optional[str] = None
 def list_local_models() -> List[Dict[str, Any]]:
     """Return available GGUF models with file sizes."""
     models: List[Dict[str, Any]] = []
-    folder = Config.models_folder
+    folder = Config.get_models_folder()
     if not os.path.exists(folder):
         return models
 

@@ -202,13 +202,14 @@ class ModelPicker extends StatelessWidget {
       final selectedInfo = _formatModelName(selectedValue);
       final picker = _PickerContainer(
         label: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.center,
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
               selectedInfo.displayName,
               style: AppTheme.textStyles.englishMedium,
               overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
             ),
             if (selectedInfo.parameterLabel != null)
               Text(
@@ -217,6 +218,7 @@ class ModelPicker extends StatelessWidget {
                   fontSize: 12,
                   color: Colors.white.withValues(alpha: 0.7),
                 ),
+                textAlign: TextAlign.center,
               ),
           ],
         ),
@@ -282,29 +284,30 @@ class ModelPicker extends StatelessWidget {
   }
 
   _FormattedModelName _formatModelName(String fileName) {
+    // Remove .gguf extension
     var base =
-        fileName.replaceAll(RegExp(r'\\.gguf$', caseSensitive: false), '');
-    final parts = base.split(RegExp(r'[_\\-]+'));
+        fileName.replaceAll(RegExp(r'\.gguf$', caseSensitive: false), '');
+    final parts = base.split(RegExp(r'[_-]+'));
     final nameParts = <String>[];
     for (final rawPart in parts) {
       final part = rawPart.trim();
       if (part.isEmpty) continue;
       // Match parameter size like "4B"
-      final paramMatch = RegExp(r'^(\\d+(?:\\.\\d+)?)[bB]$').firstMatch(part);
+      final paramMatch = RegExp(r'^(\d+(?:\.\d+)?)[bB]$').firstMatch(part);
       if (paramMatch != null) {
         nameParts.add('${paramMatch.group(1)}B');
         continue;
       }
       // Stop at quantization tokens like "Q4", "K", "M" or version numbers
-      if (RegExp(r'^[Qq]\\d').hasMatch(part) ||
+      if (RegExp(r'^[Qq]\d').hasMatch(part) ||
           RegExp(r'^[KkMm]$').hasMatch(part) ||
-          RegExp(r'^\\d{4}$').hasMatch(part)) {
+          RegExp(r'^\d{4}$').hasMatch(part)) {
         break;
       }
       nameParts.add(part);
     }
     if (nameParts.isEmpty) {
-      base = base.replaceAll(RegExp(r'[_\\-]+'), ' ').trim();
+      base = base.replaceAll(RegExp(r'[_-]+'), ' ').trim();
       return _FormattedModelName(base, null);
     }
     final display = nameParts.join(' ');
@@ -383,6 +386,7 @@ class _PickerContainer extends StatelessWidget {
           tooltip: '',
           child: Row(
             mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Flexible(
                 child: label,
@@ -401,17 +405,20 @@ class _PickerContainer extends StatelessWidget {
                 padding: EdgeInsets.zero,
                 child: Container(
                   decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        Colors.white.withValues(alpha: 0.2),
-                        Colors.white.withValues(alpha: 0.1),
-                      ],
-                    ),
+                    color: AppTheme.colors.inputBarColor,
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.3),
-                      width: 0.5,
+                      color:
+                          AppTheme.colors.primaryColor.withValues(alpha: 0.3),
+                      width: 1,
                     ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.4),
+                        blurRadius: 16,
+                        offset: Offset(0, 6),
+                      ),
+                    ],
                   ),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,

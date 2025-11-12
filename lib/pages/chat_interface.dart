@@ -400,6 +400,10 @@ class _ChatInterfaceState extends State<ChatInterface> {
                   context.read<ChatBloc>().add(LoadSession(sessionId));
                   setState(() => _isDrawerOpen = false);
                 },
+                onSettingsClosed: () {
+                  // Reload local models when settings dialog closes
+                  _loadLocalModels();
+                },
               ),
             ),
           ),
