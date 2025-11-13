@@ -2,8 +2,108 @@
   "mcpServers": {
     "web_browser": {
       "command": "npx",
-      "args": ["@playwright/mcp@latest"],
+      "args": [
+        "@playwright/mcp@latest"
+      ],
       "transport": "stdio"
+    }
+  },
+  "agents": {
+    "web_browser": {
+      "name": "Web Browser Agent",
+      "description": "Navigates and interacts with web pages to browse, fill forms, click elements, and extract information. always write exactly what to do in details when using this tool",
+      "system_prompt": "You are an autonomous web browsing agent. Your primary function is to interact with web pages using the provided `browser_` tools to fulfill user requests. Always describe your actions clearly and concisely before executing them. When asked to find or extract information, prioritize using `browser_snapshot` to get the page's accessibility tree, then parse the content to find the requested information. Use `browser_navigate` to go to URLs. For form interactions, prefer `browser_fill_form` or `browser_type` for input fields, and `browser_click` for buttons or links. Use `browser_select_option` for dropdowns. Handle dialogs with `browser_handle_dialog` and file uploads with `browser_file_upload`. If you encounter an error indicating the browser is not installed, call `browser_install`. Be cautious with sensitive information and always operate ethically and safely. Do not perform actions that could compromise user privacy or security. Only use the tools provided.",
+      "tools": [
+        {
+          "name": "browser_close",
+          "description": "Close the page"
+        },
+        {
+          "name": "browser_resize",
+          "description": "Resize the browser window"
+        },
+        {
+          "name": "browser_console_messages",
+          "description": "Returns all console messages"
+        },
+        {
+          "name": "browser_handle_dialog",
+          "description": "Handle a dialog"
+        },
+        {
+          "name": "browser_evaluate",
+          "description": "Evaluate JavaScript expression on page or element"
+        },
+        {
+          "name": "browser_file_upload",
+          "description": "Upload one or multiple files"
+        },
+        {
+          "name": "browser_fill_form",
+          "description": "Fill multiple form fields"
+        },
+        {
+          "name": "browser_install",
+          "description": "Install the browser specified in the config. Call this if you get an error about the browser not being installed."
+        },
+        {
+          "name": "browser_press_key",
+          "description": "Press a key on the keyboard"
+        },
+        {
+          "name": "browser_type",
+          "description": "Type text into editable element"
+        },
+        {
+          "name": "browser_navigate",
+          "description": "Navigate to a URL"
+        },
+        {
+          "name": "browser_navigate_back",
+          "description": "Go back to the previous page"
+        },
+        {
+          "name": "browser_network_requests",
+          "description": "Returns all network requests since loading the page"
+        },
+        {
+          "name": "browser_take_screenshot",
+          "description": "Take a screenshot of the current page. You can't perform actions based on the screenshot, use browser_snapshot for actions."
+        },
+        {
+          "name": "browser_snapshot",
+          "description": "Capture accessibility snapshot of the current page, this is better than screenshot"
+        },
+        {
+          "name": "browser_click",
+          "description": "Perform click on a web page"
+        },
+        {
+          "name": "browser_drag",
+          "description": "Perform drag and drop between two elements"
+        },
+        {
+          "name": "browser_hover",
+          "description": "Hover over element on page"
+        },
+        {
+          "name": "browser_select_option",
+          "description": "Select an option in a dropdown"
+        },
+        {
+          "name": "browser_tabs",
+          "description": "List, create, close, or select a browser tab."
+        },
+        {
+          "name": "browser_wait_for",
+          "description": "Wait for text to appear or disappear or a specified time to pass"
+        }
+      ],
+      "status": "ready",
+      "source": "gemini",
+      "last_error": null,
+      "created_at": "2025-11-13T00:00:00Z",
+      "updated_at": "2025-11-13T18:51:49.221236Z"
     }
   }
 }

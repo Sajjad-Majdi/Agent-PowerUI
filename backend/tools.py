@@ -1,9 +1,11 @@
 import os
+from functools import partial
 from langchain.tools import tool
+from langchain_core.tools import Tool
 from langchain_tavily import TavilySearch
 from datetime import datetime
 import json
-from typing import Optional
+from typing import Any, Dict, List, Optional
 from config import Config
 from utils import (
     build_mcp_progress_payload,
@@ -11,7 +13,126 @@ from utils import (
     update_mcp_progress,
 )
 import asyncio
-from mcp_agent import MCPAgent, web_browsing_prompt
+from mcp_agent import MCPAgent
+
+
+MCP_TOOL_REGISTRY: Dict[str, Dict[str, Any]] = {}
+
+
+def _metadata_is_ready(metadata: Optional[Dict[str, Any]]) -> bool:
+    if not metadata:
+        return False
+    required_fields = ['name', 'description', 'system_prompt']
+    if metadata.get('status') not in {'ready', 'seed'}:
+        return False
+    return all(isinstance(metadata.get(field), str) and metadata.get(field).strip() for field in required_fields)
+
+
+def _resolve_mcp_progress_channels():
+    progress_queue = None
+    cancel_event = None
+    try:
+        from api import mcp_progress_queues
+        import threading
+
+        session_id = getattr(threading.current_thread(), 'session_id', None)
+        if session_id and session_id in mcp_progress_queues:
+            progress_queue = mcp_progress_queues[session_id]
+        cancel_event = getattr(
+            threading.current_thread(), 'cancel_event', None)
+    except Exception:
+        pass
+    return progress_queue, cancel_event
+
+
+def _run_mcp_agent_session(server_name: str, server_config: Dict[str, Any], system_prompt: str, query: str) -> str:
+    async def run():
+        if not system_prompt or not system_prompt.strip():
+            return json.dumps({'status': 'error', 'result': 'Error: MCP agent system prompt is required but not configured.'})
+
+        agent = MCPAgent(
+            mcp_config={server_name: server_config},
+            system_prompt=system_prompt,
+        )
+
+        tracker = create_mcp_progress_tracker()
+        progress_queue, cancel_event = _resolve_mcp_progress_channels()
+
+        try:
+            async for response in agent.run_agent(query):
+                if cancel_event is not None and cancel_event.is_set():
+                    raise asyncio.CancelledError()
+
+                tracker = update_mcp_progress(tracker, response)
+
+                if progress_queue is not None and response.get('type') in {'tool_call', 'tool_message'}:
+                    step_event = {
+                        'type': 'mcp_progress',
+                        'content': {
+                            'steps': tracker['steps'],
+                            'current_tool': tracker.get('current_tool')
+                        }
+                    }
+                    try:
+                        progress_queue.put_nowait(step_event)
+                    except Exception:
+                        pass
+        except asyncio.CancelledError:
+            return json.dumps({'status': 'cancelled', 'result': 'Cancelled by user'})
+
+        payload = build_mcp_progress_payload(tracker)
+        return json.dumps(payload, ensure_ascii=False)
+
+    try:
+        return asyncio.run(run())
+    except Exception as exc:
+        import traceback
+        traceback.print_exc()
+        return f"Error: {exc}"
+
+
+def _execute_mcp_agent_tool(server_name: str, server_config: Dict[str, Any], system_prompt: str, query: str) -> str:
+    return _run_mcp_agent_session(server_name, server_config, system_prompt, query)
+
+
+def build_mcp_agent_toolset() -> List[Tool]:
+    MCP_TOOL_REGISTRY.clear()
+    toolset: List[Tool] = []
+    for entry in Config.list_mcp_agents():
+        metadata = entry.get('metadata') if isinstance(entry, dict) else None
+        if not _metadata_is_ready(metadata):
+            continue
+
+        server_name = entry['name']
+        server_config = entry['config']
+        display_name = metadata.get('name', server_name).strip()
+        description = metadata.get('description', '').strip(
+        ) or f"Delegated MCP agent for {server_name}."
+        system_prompt = metadata.get('system_prompt', '').strip()
+
+        # Sanitize tool name for LangChain (must be alphanumeric, underscores, dots, colons, dashes)
+        tool_name = f"mcp_{server_name}"
+
+        runner = partial(_execute_mcp_agent_tool, server_name,
+                         server_config, system_prompt)
+        runner.__name__ = f"{tool_name}_func"
+
+        tool = Tool(
+            name=tool_name,
+            description=f"{display_name}: {description}",
+            func=runner,
+        )
+
+        MCP_TOOL_REGISTRY[tool_name] = {
+            'server_name': server_name,
+            'metadata': metadata,
+            'config': server_config,
+            'display_name': display_name,
+        }
+
+        toolset.append(tool)
+
+    return toolset
 
 
 @tool
@@ -91,87 +212,6 @@ def update_memory(fact: str, category: str, fact_id: Optional[int] = None) -> st
         json.dump(memory, f, indent=4)
 
     return "memory updated successfully"
-
-
-@tool
-def browse_web(query: str) -> str:
-    """
-    Browse the web to accomplish tasks that need actually navigating websites or do tasks online on behalf of the user.
-
-    Args:
-        query (str): The browsing task to accomplish.
-            Examples:
-            - "Open example.com and extract the main content"
-            - "Search Amazon for laptops under $1000"
-            - "Go to zarfilm.com and list the latest sci-fi movies"
-
-    Returns:
-        str: The final response from the browsing agent.
-    """
-    async def run():
-        # Use enabled MCP servers
-        mcp_servers = Config.get_enabled_mcp_servers()
-
-        system_prompt = web_browsing_prompt
-
-        # MCPAgent will automatically check and use local agent if running
-        agent = MCPAgent(
-            mcp_config=mcp_servers,
-            system_prompt=system_prompt
-        )
-
-        print("------------ agent session ------------")
-        tracker = create_mcp_progress_tracker()
-
-        # Try to get progress queue from API global state
-        progress_queue = None
-        cancel_event = None
-        try:
-            from api import mcp_progress_queues
-            import threading
-            session_id = getattr(
-                threading.current_thread(), 'session_id', None)
-            if session_id and session_id in mcp_progress_queues:
-                progress_queue = mcp_progress_queues[session_id]
-            cancel_event = getattr(
-                threading.current_thread(), 'cancel_event', None)
-        except Exception:
-            pass
-
-        try:
-            async for response in agent.run_agent(query):
-                if cancel_event is not None and cancel_event.is_set():
-                    raise asyncio.CancelledError()
-
-                tracker = update_mcp_progress(tracker, response)
-
-                # Stream incremental progress if queue available
-                if progress_queue is not None and response.get('type') in ['tool_call', 'tool_message']:
-                    step_event = {
-                        'type': 'mcp_progress',
-                        'content': {
-                            'steps': tracker['steps'],
-                            'current_tool': tracker.get('current_tool')
-                        }
-                    }
-                    try:
-                        progress_queue.put_nowait(step_event)
-                    except Exception:
-                        pass
-        except asyncio.CancelledError:
-            return json.dumps({'status': 'cancelled', 'result': 'Cancelled by user'})
-
-        print("------------ end of agent session ------------")
-
-        payload = build_mcp_progress_payload(tracker)
-        return json.dumps(payload, ensure_ascii=False)
-
-    try:
-        return asyncio.run(run())
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-        return f"Error: {str(e)}"
 
 
 @tool

@@ -22,6 +22,12 @@ import warnings
 import threading
 import queue as queue_module
 
+from langchain_mcp_adapters.client import MultiServerMCPClient
+from langchain_mcp_adapters.tools import load_mcp_tools
+
+from mcp_agent import generate_mcp_agent_metadata
+from tools import MCP_TOOL_REGISTRY
+
 
 class _SafeStream:
     """Wrap a text stream so that OSError writes are silently ignored."""
@@ -64,6 +70,32 @@ available_tools = Config.get_default_tools()
 mcp_progress_queues = {}
 # Cancellation events per session
 session_cancel_events = {}
+
+
+def refresh_available_tools():
+    global available_tools, online_agent
+    available_tools = Config.get_default_tools()
+    if online_agent is not None:
+        try:
+            online_agent.update_tools(available_tools)
+        except Exception as exc:
+            print(f"[API] Failed to refresh online agent tools: {exc}")
+
+
+def _load_mcp_server_tools(server_name: str, server_config: dict):
+    async def _load():
+        client = MultiServerMCPClient({server_name: server_config})
+        async with client.session(server_name) as session:
+            tools = await load_mcp_tools(session)
+            snapshot = []
+            for tool in tools:
+                snapshot.append({
+                    'name': tool.name,
+                    'description': getattr(tool, 'description', '') or ''
+                })
+            return snapshot
+
+    return asyncio.run(_load())
 
 
 @app.route('/api/chat', methods=['POST'])
@@ -274,55 +306,38 @@ def local_agent_status_route():
 @app.route('/api/tools', methods=['GET'])
 def get_tools():
     """Get available core tools and MCP tools grouped by server"""
-    # core tools
     tools_info = []
-    if available_tools:
-        for tool in available_tools:
-            try:
-                tools_info.append(
-                    {'name': tool.name, 'description': getattr(tool, 'description', '')})
-            except Exception:
-                tools_info.append({'name': str(tool), 'description': ''})
+    for tool in available_tools:
+        try:
+            name = getattr(tool, 'name', str(tool))
+            description = getattr(tool, 'description', '') or ''
+            entry = {'name': name, 'description': description}
 
-    # Load MCP tools from configuration
-    mcp = {'servers': []}
-    try:
-        from langchain_mcp_adapters.client import MultiServerMCPClient
-        from langchain_mcp_adapters.tools import load_mcp_tools
+            registry_entry = MCP_TOOL_REGISTRY.get(name)
+            if registry_entry:
+                entry['mcp'] = True
+                entry['server_name'] = registry_entry.get('server_name')
+                entry['display_name'] = registry_entry.get(
+                    'display_name', name)
+                entry['metadata'] = registry_entry.get('metadata') or {}
 
-        mcp_servers = Config.get_mcp_servers()
-        mcp_state = Config.get_mcp_state()
+            tools_info.append(entry)
+        except Exception:
+            tools_info.append({'name': str(tool), 'description': ''})
 
-        if mcp_servers:
-            for server_name, server_config in mcp_servers.items():
-                # Check if server is enabled in state
-                is_enabled = mcp_state.get(server_name, True)
+    agents_payload = []
+    for agent in Config.list_mcp_agents():
+        metadata = agent.get('metadata') or {}
+        agents_payload.append({
+            'server_name': agent['name'],
+            'config': agent['config'],
+            'metadata': metadata,
+            'tools': metadata.get('tools', []),
+            'status': metadata.get('status', 'pending_metadata'),
+            'last_error': metadata.get('last_error'),
+        })
 
-                # Get tool list by connecting briefly (only for UI display)
-                tool_names = []
-                try:
-                    async def get_tool_names():
-                        client = MultiServerMCPClient(
-                            {server_name: server_config})
-                        async with client.session(server_name) as session:
-                            tools = await load_mcp_tools(session)
-                            return [tool.name for tool in tools]
-
-                    tool_names = asyncio.run(get_tool_names())
-                except Exception as e:
-                    print(f"Error loading tools from {server_name}: {e}")
-                    tool_names = []
-
-                mcp['servers'].append({
-                    'name': server_name,
-                    'enabled': is_enabled,
-                    'tools': [{'name': name} for name in tool_names]
-                })
-    except Exception as e:
-        print(f"Error loading MCP tools: {e}")
-        pass
-
-    return jsonify({'tools': tools_info, 'mcp': mcp})
+    return jsonify({'tools': tools_info, 'mcp': {'agents': agents_payload}})
 
 
 @app.route('/api/memory', methods=['GET'])
@@ -450,32 +465,191 @@ def set_model():
         return jsonify({'error': str(e)}), 500
 
 
-@app.route('/api/mcp/toggle', methods=['POST'])
-def toggle_mcp_server():
-    """Toggle an MCP server on or off"""
+@app.route('/api/mcp/agents', methods=['GET'])
+def list_mcp_agents():
+    agents = []
+    for agent in Config.list_mcp_agents():
+        metadata = agent.get('metadata') or {}
+        agents.append({
+            'server_name': agent['name'],
+            'config': agent['config'],
+            'metadata': metadata,
+            'status': metadata.get('status', 'pending_metadata'),
+            'last_error': metadata.get('last_error'),
+        })
+    return jsonify({'agents': agents})
+
+
+@app.route('/api/mcp/agents', methods=['POST'])
+def add_mcp_agent():
+    data = request.json or {}
+    server_name = (data.get('server_name') or '').strip()
+    server_config = data.get('config') or {}
+    provided_metadata = data.get('metadata')
+
+    if not server_name:
+        return jsonify({'error': 'server_name is required'}), 400
+
+    # Validate config based on transport type
+    if not isinstance(server_config, dict):
+        return jsonify({'error': 'config must be a valid object'}), 400
+
+    transport = server_config.get('transport', 'stdio')
+
+    if transport == 'streamable_http':
+        # Remote connection requires 'url'
+        if not server_config.get('url'):
+            return jsonify({'error': 'config.url is required for streamable_http transport'}), 400
+    else:
+        # Local connection requires 'command'
+        if not server_config.get('command'):
+            return jsonify({'error': 'config.command is required for stdio transport'}), 400
+
+    existing_servers = Config.get_mcp_servers()
+    if server_name in existing_servers:
+        return jsonify({'error': f"Server '{server_name}' already exists"}), 409
+
     try:
-        data = request.json or {}
-        server_name = data.get('server_name')
-        enabled = data.get('enabled')
+        tools_snapshot = _load_mcp_server_tools(server_name, server_config)
+    except Exception as exc:
+        return jsonify({'error': f'Unable to connect to MCP server: {exc}'}), 400
 
-        if server_name is None or enabled is None:
-            return jsonify({'error': 'server_name and enabled are required'}), 400
+    metadata_payload = None
+    requires_manual = False
 
-        # Get current state
-        mcp_state = Config.get_mcp_state()
+    try:
+        if provided_metadata:
+            for field in ('name', 'description', 'system_prompt'):
+                value = (provided_metadata.get(field) or '').strip()
+                if not value:
+                    raise ValueError(f"metadata.{field} cannot be empty")
+            metadata_payload = {
+                'name': provided_metadata['name'].strip(),
+                'description': provided_metadata['description'].strip(),
+                'system_prompt': provided_metadata['system_prompt'].strip(),
+                'tools': tools_snapshot,
+                'status': 'ready',
+                'source': provided_metadata.get('source', 'manual'),
+                'last_error': None,
+            }
+        else:
+            metadata_payload = generate_mcp_agent_metadata(
+                server_name, tools_snapshot)
+            metadata_payload.update({
+                'tools': tools_snapshot,
+                'status': 'ready',
+                'source': 'gemini',
+                'last_error': None,
+            })
+    except Exception as exc:
+        metadata_payload = {
+            'name': '',
+            'description': '',
+            'system_prompt': '',
+            'tools': tools_snapshot,
+            'status': 'pending_metadata',
+            'source': 'manual',
+            'last_error': str(exc),
+        }
+        requires_manual = True
 
-        # Update the state
-        mcp_state[server_name] = enabled
+    Config.set_mcp_server(server_name, server_config)
+    Config.upsert_mcp_agent_metadata(server_name, metadata_payload)
+    refresh_available_tools()
 
-        # Save the state
-        Config.set_mcp_state(mcp_state)
+    stored_metadata = Config.get_mcp_agent_metadata(server_name) or {}
+    response_payload = {
+        'server_name': server_name,
+        'config': server_config,
+        'metadata': stored_metadata,
+        'status': stored_metadata.get('status', 'pending_metadata'),
+        'requires_manual_metadata': requires_manual,
+    }
 
-        # No need to reload tools - browse_web checks enabled state at runtime
-        print(f"MCP server '{server_name}' toggled to {enabled}")
+    return jsonify(response_payload), 201
 
-        return jsonify({'message': f"MCP server '{server_name}' toggled successfully", 'enabled': enabled})
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/mcp/agents/<string:server_name>/metadata', methods=['PUT'])
+def update_mcp_agent_metadata(server_name: str):
+    data = request.json or {}
+    name = (data.get('name') or '').strip()
+    description = (data.get('description') or '').strip()
+    system_prompt = (data.get('system_prompt') or '').strip()
+
+    if not all([name, description, system_prompt]):
+        return jsonify({'error': 'name, description, and system_prompt are required'}), 400
+
+    servers = Config.get_mcp_servers()
+    if server_name not in servers:
+        return jsonify({'error': f"Server '{server_name}' not found"}), 404
+
+    metadata = Config.get_mcp_agent_metadata(server_name) or {}
+    metadata.update({
+        'name': name,
+        'description': description,
+        'system_prompt': system_prompt,
+        'status': 'ready',
+        'source': data.get('source', metadata.get('source', 'manual')),
+        'last_error': None,
+    })
+    if 'tools' not in metadata or not metadata['tools']:
+        try:
+            metadata['tools'] = _load_mcp_server_tools(
+                server_name, servers[server_name])
+        except Exception as exc:
+            metadata['tools'] = []
+            metadata['last_error'] = f'Failed to refresh MCP tools: {exc}'
+            metadata['status'] = 'pending_metadata'
+
+    Config.upsert_mcp_agent_metadata(server_name, metadata)
+    refresh_available_tools()
+
+    stored = Config.get_mcp_agent_metadata(server_name) or {}
+    return jsonify({
+        'server_name': server_name,
+        'metadata': stored,
+        'status': stored.get('status', 'pending_metadata')
+    })
+
+
+@app.route('/api/mcp/agents/<string:server_name>/regenerate', methods=['POST'])
+def regenerate_mcp_agent_metadata(server_name: str):
+    servers = Config.get_mcp_servers()
+    if server_name not in servers:
+        return jsonify({'error': f"Server '{server_name}' not found"}), 404
+
+    try:
+        tools_snapshot = _load_mcp_server_tools(
+            server_name, servers[server_name])
+        metadata = generate_mcp_agent_metadata(server_name, tools_snapshot)
+        metadata.update({
+            'tools': tools_snapshot,
+            'status': 'ready',
+            'source': 'gemini',
+            'last_error': None,
+        })
+        Config.upsert_mcp_agent_metadata(server_name, metadata)
+        refresh_available_tools()
+        stored = Config.get_mcp_agent_metadata(server_name) or {}
+        return jsonify({
+            'server_name': server_name,
+            'metadata': stored,
+            'status': stored.get('status', 'pending_metadata')
+        })
+    except Exception as exc:
+        return jsonify({'error': str(exc)}), 500
+
+
+@app.route('/api/mcp/agents/<string:server_name>', methods=['DELETE'])
+def delete_mcp_agent(server_name: str):
+    servers = Config.get_mcp_servers()
+    if server_name not in servers:
+        return jsonify({'error': f"Server '{server_name}' not found"}), 404
+
+    Config.remove_mcp_server(server_name)
+    refresh_available_tools()
+
+    return jsonify({'message': f"MCP agent '{server_name}' deleted"})
 
 
 @app.route('/api/health', methods=['GET'])
@@ -695,4 +869,5 @@ if __name__ == '__main__':
         print("WARNING: No Gemini API key found. Set GOOGLE_API_KEY or configure via settings.")
 
     online_agent = asyncio.run(init_online_agent())
+    refresh_available_tools()
     app.run(debug=True, host='0.0.0.0', port=5000, use_reloader=False)

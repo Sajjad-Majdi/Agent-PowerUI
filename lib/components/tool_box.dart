@@ -1,16 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:iconsax/iconsax.dart';
 import '/theme.dart';
-import '/services/api_service.dart';
+import '/services/api_service.dart' show McpAgentInfo;
 
 class ToolBox extends StatefulWidget {
   final List<Map<String, dynamic>> tools;
+  final List<McpAgentInfo> mcpAgents;
   final bool isLoading;
   final VoidCallback onRefresh;
 
   const ToolBox({
     Key? key,
     required this.tools,
+    required this.mcpAgents,
     required this.isLoading,
     required this.onRefresh,
   }) : super(key: key);
@@ -78,7 +80,7 @@ class _ToolBoxState extends State<ToolBox> {
           Flexible(
             child: widget.isLoading
                 ? _buildLoadingState(theme)
-                : widget.tools.isEmpty
+                : (widget.tools.isEmpty && widget.mcpAgents.isEmpty)
                     ? _buildEmptyState(theme)
                     : _buildToolsList(theme),
           ),
@@ -144,29 +146,83 @@ class _ToolBoxState extends State<ToolBox> {
   }
 
   Widget _buildToolsList(ThemeData theme) {
-    return ListView.separated(
-      shrinkWrap: true,
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      itemCount: widget.tools.length,
-      separatorBuilder: (context, index) => Divider(
-        height: 1,
-        thickness: 1,
-        color: theme.colorScheme.outlineVariant.withAlpha(51),
-        indent: 12,
-        endIndent: 12,
-      ),
-      itemBuilder: (context, index) {
-        final tool = widget.tools[index];
-        final isMcpGroup = tool['mcp'] == true;
-        if (isMcpGroup) {
-          final serverName = tool['name']?.toString() ?? 'MCP';
-          final enabled = tool['enabled'] ?? true;
-          final serverTools =
-              (tool['tools'] as List?)?.cast<String>() ?? const [];
-          return _buildMcpGroupItem(theme, serverName, enabled, serverTools);
+    final List<Widget> children = [];
+
+    // Show core tools (non-MCP)
+    final coreTools =
+        widget.tools.where((tool) => tool['mcp'] != true).toList();
+
+    for (int i = 0; i < coreTools.length; i++) {
+      children.add(_buildToolItem(theme, coreTools[i]));
+      if (i != coreTools.length - 1) {
+        children.add(Divider(
+          height: 1,
+          thickness: 1,
+          color: theme.colorScheme.outlineVariant.withAlpha(51),
+          indent: 12,
+          endIndent: 12,
+        ));
+      }
+    }
+
+    // Show MCP tools (from tools list marked with mcp flag)
+    final mcpTools = widget.tools.where((tool) => tool['mcp'] == true).toList();
+
+    // Also show MCP agents that might not have tools yet
+    if (mcpTools.isNotEmpty || widget.mcpAgents.isNotEmpty) {
+      if (children.isNotEmpty) {
+        children.add(SizedBox(height: 12));
+      }
+      children.add(_buildSectionHeader(theme, 'MCP Agents'));
+
+      // Show MCP tools from registry (these are active/ready)
+      for (int i = 0; i < mcpTools.length; i++) {
+        final tool = mcpTools[i];
+        final displayName = tool['display_name'] ?? tool['name'] ?? 'Unknown';
+        children.add(_buildToolItem(theme, {'name': displayName}));
+        if (i != mcpTools.length - 1 || widget.mcpAgents.isNotEmpty) {
+          children.add(Divider(
+            height: 1,
+            thickness: 1,
+            color: theme.colorScheme.outlineVariant.withAlpha(51),
+            indent: 12,
+            endIndent: 12,
+          ));
         }
-        return _buildToolItem(theme, tool);
-      },
+      }
+
+      // Show additional MCP agents that aren't in tools yet (pending metadata)
+      final mcpServerNames = mcpTools
+          .map((t) => t['server_name'])
+          .where((name) => name != null)
+          .toSet();
+      final pendingAgents = widget.mcpAgents
+          .where((agent) => !mcpServerNames.contains(agent.serverName))
+          .toList();
+
+      for (int i = 0; i < pendingAgents.length; i++) {
+        final agent = pendingAgents[i];
+        children.add(_buildToolItem(theme, {'name': agent.displayName}));
+        if (i != pendingAgents.length - 1) {
+          children.add(Divider(
+            height: 1,
+            thickness: 1,
+            color: theme.colorScheme.outlineVariant.withAlpha(51),
+            indent: 12,
+            endIndent: 12,
+          ));
+        }
+      }
+    }
+
+    if (children.isEmpty) {
+      return _buildEmptyState(theme);
+    }
+
+    return ListView(
+      shrinkWrap: true,
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      children: children,
     );
   }
 
@@ -219,158 +275,20 @@ class _ToolBoxState extends State<ToolBox> {
     );
   }
 
-  Widget _buildMcpGroupItem(ThemeData theme, String serverName, bool enabled,
-      List<String> serverTools) {
-    const int maxToolsToShow = 4;
-    final displayTools = serverTools.take(maxToolsToShow).toList();
-    final hasMore = serverTools.length > maxToolsToShow;
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _buildSectionHeader(ThemeData theme, String label) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      child: Row(
         children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(4),
-                decoration: BoxDecoration(
-                  color: enabled
-                      ? theme.colorScheme.primaryContainer.withAlpha(128)
-                      : theme.colorScheme.surfaceContainerHighest
-                          .withAlpha(128),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: Icon(
-                  Iconsax.hierarchy_2,
-                  size: 16,
-                  color: enabled
-                      ? theme.colorScheme.primary
-                      : theme.colorScheme.onSurfaceVariant.withAlpha(128),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  serverName,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    fontWeight: FontWeight.w700,
-                    color: enabled
-                        ? theme.colorScheme.onSurface
-                        : theme.colorScheme.onSurfaceVariant.withAlpha(128),
-                    fontFamily: 'Nunito',
-                    fontSize: 16,
-                  ),
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: enabled
-                      ? theme.colorScheme.primaryContainer.withAlpha(128)
-                      : theme.colorScheme.surfaceContainerHighest
-                          .withAlpha(128),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(
-                  '${serverTools.length}',
-                  style: theme.textTheme.labelSmall?.copyWith(
-                    color: enabled
-                        ? theme.colorScheme.primary
-                        : theme.colorScheme.onSurfaceVariant.withAlpha(128),
-                    fontWeight: FontWeight.w600,
-                    fontSize: 11,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Transform.scale(
-                scale: 0.8,
-                child: Switch(
-                  value: enabled,
-                  onChanged: (value) async {
-                    try {
-                      await ApiService.toggleMcpServer(serverName, value);
-                      widget.onRefresh();
-                    } catch (e) {
-                      if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text('Failed to toggle $serverName: $e'),
-                            backgroundColor: theme.colorScheme.error,
-                          ),
-                        );
-                      }
-                    }
-                  },
-                  activeColor: theme.colorScheme.primary,
-                  activeTrackColor: theme.colorScheme.primaryContainer,
-                  inactiveThumbColor:
-                      theme.colorScheme.onSurfaceVariant.withAlpha(128),
-                  inactiveTrackColor:
-                      theme.colorScheme.surfaceContainerHighest.withAlpha(128),
-                ),
-              ),
-            ],
-          ),
-          if (serverTools.isNotEmpty) ...[
-            const SizedBox(height: 4),
-            Opacity(
-              opacity: enabled ? 1.0 : 0.5,
-              child: Wrap(
-                spacing: 4,
-                runSpacing: 4,
-                children: [
-                  ...displayTools.map((t) {
-                    return Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color:
-                            theme.colorScheme.secondaryContainer.withAlpha(64),
-                        borderRadius: BorderRadius.circular(4),
-                        border: Border.all(
-                          color: theme.colorScheme.outlineVariant.withAlpha(64),
-                          width: 1,
-                        ),
-                      ),
-                      child: Text(
-                        t,
-                        style: theme.textTheme.labelSmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                          fontSize: 10,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    );
-                  }),
-                  if (hasMore)
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color:
-                            theme.colorScheme.secondaryContainer.withAlpha(64),
-                        borderRadius: BorderRadius.circular(4),
-                        border: Border.all(
-                          color: theme.colorScheme.outlineVariant.withAlpha(64),
-                          width: 1,
-                        ),
-                      ),
-                      child: Text(
-                        '+${serverTools.length - maxToolsToShow}',
-                        style: theme.textTheme.labelSmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                          fontSize: 10,
-                          fontWeight: FontWeight.w600,
-                          fontStyle: FontStyle.italic,
-                        ),
-                      ),
-                    ),
-                ],
-              ),
+          Icon(Iconsax.hierarchy_2, size: 16, color: theme.colorScheme.primary),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: theme.textTheme.labelMedium?.copyWith(
+              fontWeight: FontWeight.w700,
+              color: theme.colorScheme.onSurface.withAlpha(204),
             ),
-          ],
+          ),
         ],
       ),
     );

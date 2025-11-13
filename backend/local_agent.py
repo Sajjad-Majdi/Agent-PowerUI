@@ -274,7 +274,7 @@ class LocalAgent:
 
         session_config = {"configurable": {"thread_id": session_id}}
 
-        # Attach session_id to current thread for browse_web to access
+        # Attach session_id to current thread for MCP agent tools to access
         threading.current_thread().session_id = session_id
         if cancel_event is not None:
             threading.current_thread().cancel_event = cancel_event

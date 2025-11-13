@@ -3,13 +3,13 @@ from langchain_mcp_adapters.tools import load_mcp_tools
 from langchain.chat_models import init_chat_model
 from langgraph.prebuilt import create_react_agent
 from langgraph.checkpoint.memory import MemorySaver
-from langchain_core.tools import tool
 from langchain_openai import ChatOpenAI
 from langgraph.graph import StateGraph, MessagesState, START, END
 from langgraph.prebuilt import ToolNode
-from typing import Annotated
-from langchain_core.messages import BaseMessage
+from typing import Annotated, Any, Dict, List, Optional, Type
+from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
 from langgraph.graph.message import add_messages
+from langchain_core.pydantic_v1 import BaseModel, Field, ValidationError
 
 from config import Config
 import asyncio
@@ -39,50 +39,6 @@ def silence_gemini_schema_warnings():
 
 
 silence_gemini_schema_warnings()
-
-web_browsing_prompt = """You are an advanced web automation agent with powerful browsing and interaction capabilities.
-
-You can perform ANY web task including:
-✓ Navigate to websites (by URL or search)
-✓ Click links, buttons, and interactive elements
-✓ Fill forms and submit data
-✓ Search within websites
-✓ Extract and analyze content
-✓ Perform multi-step workflows
-✓ Handle pagination and navigation
-
-How to Operate Efficiently:
-
-**Step 1 - Plan Your Approach**
-- Break down the task into logical steps
-- Identify the target website and required actions
-- Consider the most direct path to completion
-
-**Step 2 - Execute Strategically**
-- Navigate to the site (use exact URL if known)
-- Wait for pages to fully load before interacting
-- Use site search features when available
-- Follow navigation menus intelligently
-- Interact with elements precisely (click, type, submit)
-
-**Step 3 - Verify and Adapt**
-- Check each action succeeded before proceeding
-- If something fails, try an alternative approach
-- Verify you're getting the expected results
-
-**Step 4 - Complete and Report**
-- Extract the final result or confirm action completion
-- Provide a clear, concise summary
-- STOP once the task is fully accomplished
-
-Key Rules:
-- For complex tasks: Chain multiple actions together
-- For multi-page workflows: Navigate step-by-step
-- For searches: Use on-site search or browse categories
-- For data entry: Fill ALL required fields before submitting
-- Be persistent but efficient - don't repeat failed actions
-
-Remember: You're not just gathering information, you're actively interacting with and navigating websites to accomplish tasks."""
 
 
 class MCPAgent:
@@ -302,9 +258,73 @@ class MCPAgent:
                     yield result
 
 
+class MCPAgentMetadataSchema(BaseModel):
+    name: str = Field(..., description="Concise, memorable display name (3-5 words) for the MCP agent.")
+    description: str = Field(
+        ..., description="One to two sentences explaining what this agent does for the primary assistant.")
+    system_prompt: str = Field(
+        ..., description="Detailed operating instructions for the MCP agent, including style and safety guidance.")
+
+
+def get_structured_output_from_gemini(
+    schema: Type[BaseModel],
+    messages: List[BaseMessage],
+    model_name: Optional[str] = None,
+):
+    """Invoke Gemini with structured output, returning the parsed schema instance."""
+    selected_model = model_name or f"google_genai:{Config.DEFAULT_GEMINI_MODEL}"
+    llm = init_chat_model(model=selected_model)
+    structured_llm = llm.with_structured_output(schema)
+    return structured_llm.invoke(messages)
+
+
+def generate_mcp_agent_metadata(
+    server_name: str,
+    tools: List[Dict[str, Any]],
+    model_name: Optional[str] = None,
+) -> Dict[str, str]:
+    """Ask Gemini to craft metadata for an MCP agent based on its exposed tools."""
+    tool_lines = []
+    for tool in tools:
+        tool_name = tool.get('name', 'Unnamed tool')
+        description = tool.get('description') or tool.get(
+            'docstring') or 'No description provided.'
+        tool_lines.append(f"- {tool_name}: {description}")
+
+    tools_block = "\n".join(tool_lines) if tool_lines else "- No tools listed"
+
+    system_message = SystemMessage(content=(
+        "You are a planner that defines metadata for delegated Model Context Protocol (MCP) agents."
+        " Produce polished, human-friendly outputs and never leave fields blank."
+    ))
+
+    human_message = HumanMessage(content=(
+        f"Server identifier: {server_name}\n"
+        f"The MCP agent exposes the following tools:\n{tools_block}\n\n"
+        "Provide a display name, a short description so the main assistant knows when to call it,"
+        " and a rigorous system prompt that instructs the MCP agent how to operate."
+        " Keep the description under 200 characters and the system prompt under 500 words."
+    ))
+
+    try:
+        result = get_structured_output_from_gemini(
+            MCPAgentMetadataSchema,
+            [system_message, human_message],
+            model_name=model_name,
+        )
+
+        if isinstance(result, MCPAgentMetadataSchema):
+            return result.dict()
+        if isinstance(result, dict):
+            return MCPAgentMetadataSchema(**result).dict()
+        return result
+    except (ValidationError, Exception) as exc:
+        raise RuntimeError(f"Failed to generate MCP agent metadata: {exc}")
+
+
 if __name__ == "__main__":
     async def run():
-        system_prompt = web_browsing_prompt
+        system_prompt = "You are a web browsing agent. Navigate and interact with websites to fulfill user requests."
         try:
             agent = MCPAgent(
                 mcp_config=Config.get_mcp_servers(),

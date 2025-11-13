@@ -29,6 +29,7 @@ class _InputBarState extends State<InputBar> with TickerProviderStateMixin {
   final int _maxLines = 6;
   bool _isHovering = false;
   List<Map<String, dynamic>> _tools = [];
+  List<McpAgentInfo> _mcpAgents = [];
   bool _toolsLoading = false;
 
   @override
@@ -49,10 +50,12 @@ class _InputBarState extends State<InputBar> with TickerProviderStateMixin {
     for (int attempt = 1; attempt <= maxAttempts; attempt++) {
       try {
         print('Loading tools... attempt $attempt/$maxAttempts');
-        final tools = await ApiService.getTools();
-        print('Tools loaded successfully: ${tools.length} tools');
+        final toolbox = await ApiService.getTools();
+        print(
+            'Tools loaded successfully: ${toolbox.coreTools.length} core tools, ${toolbox.mcpAgents.length} MCP agents');
         setState(() {
-          _tools = tools;
+          _tools = toolbox.coreTools;
+          _mcpAgents = toolbox.mcpAgents;
           _toolsLoading = false;
         });
         return;
@@ -61,7 +64,11 @@ class _InputBarState extends State<InputBar> with TickerProviderStateMixin {
         // If last attempt, just log and exit loop
         if (attempt == maxAttempts) {
           print('Error loading tools (final): $e');
-          setState(() => _toolsLoading = false);
+          setState(() {
+            _toolsLoading = false;
+            _tools = [];
+            _mcpAgents = [];
+          });
           break;
         }
         // Exponential backoff
@@ -70,11 +77,13 @@ class _InputBarState extends State<InputBar> with TickerProviderStateMixin {
       }
     }
 
-    setState(() => _toolsLoading = false);
+    setState(() {
+      _toolsLoading = false;
+    });
   }
 
   void _showToolsBox(BuildContext context) {
-    if (_tools.isEmpty && !_toolsLoading) {
+    if (_tools.isEmpty && _mcpAgents.isEmpty && !_toolsLoading) {
       // Lazy refresh right before showing the box
       _loadTools();
     }
@@ -96,6 +105,7 @@ class _InputBarState extends State<InputBar> with TickerProviderStateMixin {
               color: Colors.transparent,
               child: ToolBox(
                 tools: _tools,
+                mcpAgents: _mcpAgents,
                 isLoading: _toolsLoading,
                 onRefresh: _loadTools,
               ),

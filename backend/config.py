@@ -1,7 +1,7 @@
 import json
 import os
 from datetime import datetime
-from typing import Literal
+from typing import Any, Dict, List, Literal, Optional
 
 backend_directory = os.path.dirname(__file__)
 project_root = os.path.dirname(backend_directory)
@@ -24,8 +24,6 @@ class Config:
     db_path = os.path.join(backend_directory, 'data', 'chat_storage.db')
 
     memory_path = os.path.join(backend_directory, 'memory', 'fact.json')
-    mcp_state_path = os.path.join(
-        backend_directory, 'memory', 'mcp_state.json')
     instructions_path = os.path.join(
         backend_directory, 'memory', 'instructions.json')
     api_key_path = os.path.join(
@@ -112,37 +110,108 @@ class Config:
         }
 
     @staticmethod
-    def get_mcp_state():
-        """Get the current state of MCP tools (enabled/disabled per server)"""
+    def _load_mcp_config() -> dict:
+        """Load the MCP configuration file with graceful defaults."""
+        config_path = os.path.join(backend_directory, 'mcp.json')
         try:
-            if not os.path.exists(Config.mcp_state_path):
-                # Create default state with all tools enabled
-                mcp_servers = Config.get_mcp_servers()
-                default_state = {server: True for server in mcp_servers.keys()}
-                Config.set_mcp_state(default_state)
-                return default_state
-
-            with open(Config.mcp_state_path, 'r') as f:
-                return json.load(f)
-        except Exception:
-            return {}
+            if not os.path.exists(config_path):
+                return {"mcpServers": {}, "agents": {}}
+            with open(config_path, 'r') as file:
+                data = json.load(file)
+                if not isinstance(data, dict):
+                    return {"mcpServers": {}, "agents": {}}
+                data.setdefault('mcpServers', {})
+                data.setdefault('agents', {})
+                return data
+        except Exception as exc:
+            print(f"Error loading MCP configuration: {exc}")
+            return {"mcpServers": {}, "agents": {}}
 
     @staticmethod
-    def set_mcp_state(state: dict):
-        """Set the state of MCP tools (enabled/disabled per server)"""
+    def _save_mcp_config(data: dict):
+        """Persist the MCP configuration file atomically."""
+        config_path = os.path.join(backend_directory, 'mcp.json')
         try:
-            os.makedirs(os.path.dirname(Config.mcp_state_path), exist_ok=True)
-            with open(Config.mcp_state_path, 'w') as f:
-                json.dump(state, f, indent=2)
-        except Exception as e:
-            print(f"Error saving MCP state: {e}")
+            os.makedirs(os.path.dirname(config_path), exist_ok=True)
+            with open(config_path, 'w') as handle:
+                json.dump(data, handle, indent=2)
+        except Exception as exc:
+            print(f"Error saving MCP configuration: {exc}")
 
     @staticmethod
-    def get_enabled_mcp_servers():
-        """Get only the MCP servers that are currently enabled"""
-        all_servers = Config.get_mcp_servers()
-        state = Config.get_mcp_state()
-        return {name: config for name, config in all_servers.items() if state.get(name, True)}
+    def get_mcp_servers() -> dict:
+        """Return all configured MCP servers."""
+        config = Config._load_mcp_config()
+        return dict(config.get('mcpServers', {}))
+
+    @staticmethod
+    def set_mcp_server(server_name: str, server_config: dict):
+        """Create or update an MCP server entry."""
+        if not server_name:
+            raise ValueError('server_name is required')
+        config = Config._load_mcp_config()
+        config.setdefault('mcpServers', {})[server_name] = server_config
+        Config._save_mcp_config(config)
+
+    @staticmethod
+    def remove_mcp_server(server_name: str):
+        """Remove an MCP server and any associated metadata."""
+        config = Config._load_mcp_config()
+        servers = config.setdefault('mcpServers', {})
+        agents = config.setdefault('agents', {})
+        if server_name in servers:
+            del servers[server_name]
+        if server_name in agents:
+            del agents[server_name]
+        Config._save_mcp_config(config)
+
+    @staticmethod
+    def get_mcp_agent_metadata(server_name: str) -> Optional[dict]:
+        """Fetch stored metadata for an MCP agent if available."""
+        config = Config._load_mcp_config()
+        agents = config.get('agents', {})
+        metadata = agents.get(server_name)
+        return dict(metadata) if isinstance(metadata, dict) else None
+
+    @staticmethod
+    def upsert_mcp_agent_metadata(server_name: str, metadata: dict):
+        """Persist metadata for an MCP agent, stamping timestamps automatically."""
+        if not server_name:
+            raise ValueError('server_name is required')
+        if not isinstance(metadata, dict):
+            raise ValueError('metadata must be a dictionary')
+
+        config = Config._load_mcp_config()
+        agents = config.setdefault('agents', {})
+        existing = agents.get(server_name) or {}
+
+        created_at = existing.get('created_at')
+        if not created_at:
+            created_at = datetime.utcnow().isoformat() + 'Z'
+
+        metadata = dict(metadata)
+        metadata.setdefault('created_at', created_at)
+        metadata['updated_at'] = datetime.utcnow().isoformat() + 'Z'
+        agents[server_name] = metadata
+        Config._save_mcp_config(config)
+
+    @staticmethod
+    def list_mcp_agents() -> List[Dict[str, Any]]:
+        """Return combined view of MCP servers and their metadata."""
+        config = Config._load_mcp_config()
+        servers = config.get('mcpServers', {})
+        agents = config.get('agents', {})
+        result = []
+        for name, server_config in servers.items():
+            metadata = agents.get(name)
+            if isinstance(metadata, dict):
+                metadata = dict(metadata)
+            result.append({
+                'name': name,
+                'config': server_config,
+                'metadata': metadata if isinstance(metadata, dict) else None,
+            })
+        return result
 
     @staticmethod
     def get_instructions():
@@ -245,23 +314,16 @@ class Config:
 
                     {instructions_block}
 
-                    Remember: You're building a long-term relationship. Each interaction should make you more valuable and attuned to the user's unique needs."""
+                    Remember: You're building a long-term relationship. Each interaction should make you more valuable and attuned to the user's unique needs.
+                    Note: as a personal assistant, you are allowed to remember user's password and username for some websites if the user permits you to do so and login in different websites on behalf of the user.
+                    """
 
     @staticmethod
     def get_default_tools():
-        from tools import search_web, update_memory, browse_web, file_explorer_tool
+        from tools import search_web, update_memory, file_explorer_tool, build_mcp_agent_toolset
 
         tools = [search_web, update_memory, file_explorer_tool]
-
-        # Add browse_web tool only if MCP servers are enabled
-        enabled_servers = Config.get_enabled_mcp_servers()
-        if enabled_servers:
-            tools.append(browse_web)
-            print(
-                f"browse_web tool added (MCP servers enabled: {list(enabled_servers.keys())})")
-        else:
-            print("browse_web tool not added (no MCP servers enabled)")
-
+        tools.extend(build_mcp_agent_toolset())
         return tools
 
     @staticmethod

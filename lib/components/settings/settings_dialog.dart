@@ -3,6 +3,7 @@ import 'package:iconsax/iconsax.dart';
 import 'sections/local_models_section.dart';
 import 'sections/memory_instructions_section.dart';
 import 'sections/general_section.dart';
+import 'sections/mcp_agents_section.dart';
 
 class SettingsDialog extends StatefulWidget {
   const SettingsDialog({Key? key}) : super(key: key);
@@ -29,6 +30,11 @@ class _SettingsDialogState extends State<SettingsDialog> {
       icon: Iconsax.cpu,
       label: 'Offline Models',
       widget: LocalModelsSection(),
+    ),
+    _SectionItem(
+      icon: Iconsax.hierarchy_2,
+      label: 'MCP Agents',
+      widget: McpAgentsSection(),
     ),
   ];
 

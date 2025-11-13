@@ -94,6 +94,60 @@ class LocalModelsResult {
   }
 }
 
+class McpAgentInfo {
+  final String serverName;
+  final Map<String, dynamic> config;
+  final Map<String, dynamic> metadata;
+  final String status;
+  final String? lastError;
+
+  const McpAgentInfo({
+    required this.serverName,
+    required this.config,
+    required this.metadata,
+    required this.status,
+    this.lastError,
+  });
+
+  factory McpAgentInfo.fromJson(Map<String, dynamic> json) {
+    final metadata = Map<String, dynamic>.from(json['metadata'] ?? const {});
+    return McpAgentInfo(
+      serverName: json['server_name']?.toString() ?? '',
+      config: Map<String, dynamic>.from(json['config'] ?? const {}),
+      metadata: metadata,
+      status: json['status']?.toString() ??
+          metadata['status']?.toString() ??
+          'pending_metadata',
+      lastError: (json['last_error'] ?? metadata['last_error'])?.toString(),
+    );
+  }
+
+  bool get isReady => status == 'ready' || status == 'seed';
+
+  String get displayName => (metadata['name'] ?? serverName).toString();
+
+  String get description => metadata['description']?.toString() ?? '';
+
+  String get systemPrompt => metadata['system_prompt']?.toString() ?? '';
+
+  List<dynamic> get tools => (metadata['tools'] as List?) ?? const [];
+}
+
+class ToolboxData {
+  final List<Map<String, dynamic>> coreTools;
+  final List<McpAgentInfo> mcpAgents;
+
+  const ToolboxData({required this.coreTools, required this.mcpAgents});
+}
+
+class McpAgentCreationResult {
+  final McpAgentInfo agent;
+  final bool requiresManualMetadata;
+
+  const McpAgentCreationResult(
+      {required this.agent, required this.requiresManualMetadata});
+}
+
 class ApiService {
   static const String baseUrl = 'http://localhost:5000/api';
 
@@ -186,31 +240,25 @@ class ApiService {
     }
   }
 
-  static Future<List<Map<String, dynamic>>> getTools() async {
+  static Future<ToolboxData> getTools() async {
     await ensureBackendReady();
     final response = await http.get(Uri.parse('$baseUrl/tools'));
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
-      // Merge core tools and attach MCP groups if present
-      final coreTools = List<Map<String, dynamic>>.from(data['tools'] ?? []);
-      final mcp = data['mcp'];
-      if (mcp != null && mcp['servers'] is List) {
-        for (final server in mcp['servers']) {
-          final name = server['name'] ?? 'MCP';
-          final enabled = server['enabled'] ?? true;
-          final tools = (server['tools'] as List?)
-                  ?.map((t) => t['name'].toString())
-                  .toList() ??
-              [];
-          coreTools.add({
-            'name': name,
-            'mcp': true,
-            'enabled': enabled,
-            'tools': tools,
-          });
-        }
-      }
-      return coreTools;
+      final tools = data['tools'] as List? ?? const [];
+      final coreTools = tools
+          .whereType<Map>()
+          .map((tool) => Map<String, dynamic>.from(tool))
+          .toList();
+
+      final mcpAgentsJson = (data['mcp']?['agents'] as List?) ?? const [];
+      final mcpAgents = mcpAgentsJson
+          .whereType<Map>()
+          .map((agent) =>
+              McpAgentInfo.fromJson(Map<String, dynamic>.from(agent)))
+          .toList();
+
+      return ToolboxData(coreTools: coreTools, mcpAgents: mcpAgents);
     }
     throw Exception('Failed to get tools');
   }
@@ -422,21 +470,103 @@ class ApiService {
     throw Exception('Failed to set model: ${response.statusCode}');
   }
 
-  static Future<bool> toggleMcpServer(String serverName, bool enabled) async {
+  static Future<List<McpAgentInfo>> listMcpAgents() async {
     await ensureBackendReady();
-    final response = await http.post(
-      Uri.parse('$baseUrl/mcp/toggle'),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({
-        'server_name': serverName,
-        'enabled': enabled,
-      }),
-    );
+    final response = await http.get(Uri.parse('$baseUrl/mcp/agents'));
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
-      return data['enabled'] == true;
+      final agents = (data['agents'] as List?) ?? const [];
+      return agents
+          .whereType<Map>()
+          .map((agent) =>
+              McpAgentInfo.fromJson(Map<String, dynamic>.from(agent)))
+          .toList();
     }
-    throw Exception('Failed to toggle MCP server: ${response.statusCode}');
+    throw Exception('Failed to list MCP agents');
+  }
+
+  static Future<McpAgentCreationResult> addMcpAgent({
+    required String serverName,
+    required Map<String, dynamic> config,
+    Map<String, String>? metadata,
+  }) async {
+    await ensureBackendReady();
+    final payload = {
+      'server_name': serverName,
+      'config': config,
+      if (metadata != null) 'metadata': metadata,
+    };
+    final response = await http.post(
+      Uri.parse('$baseUrl/mcp/agents'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode(payload),
+    );
+    final data = jsonDecode(response.body);
+    if (response.statusCode == 201) {
+      final agent = McpAgentInfo.fromJson(Map<String, dynamic>.from(data));
+      final requiresManual = data['requires_manual_metadata'] == true;
+      return McpAgentCreationResult(
+          agent: agent, requiresManualMetadata: requiresManual);
+    }
+    final message = data['error'] ?? 'Failed to add MCP agent';
+    throw Exception(message);
+  }
+
+  static Future<McpAgentInfo> updateMcpAgentMetadata({
+    required String serverName,
+    required String name,
+    required String description,
+    required String systemPrompt,
+  }) async {
+    await ensureBackendReady();
+    final response = await http.put(
+      Uri.parse('$baseUrl/mcp/agents/$serverName/metadata'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'name': name,
+        'description': description,
+        'system_prompt': systemPrompt,
+      }),
+    );
+    final data = jsonDecode(response.body);
+    if (response.statusCode == 200) {
+      return McpAgentInfo.fromJson({
+        'server_name': serverName,
+        'config': const {},
+        'metadata': data['metadata'] ?? const {},
+        'status': data['status'],
+      });
+    }
+    throw Exception(data['error'] ?? 'Failed to update MCP metadata');
+  }
+
+  static Future<McpAgentInfo> regenerateMcpAgentMetadata(
+      String serverName) async {
+    await ensureBackendReady();
+    final response = await http.post(
+      Uri.parse('$baseUrl/mcp/agents/$serverName/regenerate'),
+      headers: {'Content-Type': 'application/json'},
+    );
+    final data = jsonDecode(response.body);
+    if (response.statusCode == 200) {
+      return McpAgentInfo.fromJson({
+        'server_name': serverName,
+        'config': const {},
+        'metadata': data['metadata'] ?? const {},
+        'status': data['status'],
+      });
+    }
+    throw Exception(data['error'] ?? 'Failed to regenerate MCP metadata');
+  }
+
+  static Future<void> deleteMcpAgent(String serverName) async {
+    await ensureBackendReady();
+    final response =
+        await http.delete(Uri.parse('$baseUrl/mcp/agents/$serverName'));
+    if (response.statusCode != 200) {
+      final data = jsonDecode(response.body);
+      throw Exception(data['error'] ?? 'Failed to delete MCP agent');
+    }
   }
 
   static Future<String> getInstructions() async {
