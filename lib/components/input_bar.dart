@@ -21,10 +21,10 @@ class InputBar extends StatefulWidget {
   }) : super(key: key);
 
   @override
-  State<InputBar> createState() => _InputBarState();
+  State<InputBar> createState() => InputBarState();
 }
 
-class _InputBarState extends State<InputBar> with TickerProviderStateMixin {
+class InputBarState extends State<InputBar> with TickerProviderStateMixin {
   final FocusNode _focusNode = FocusNode();
   final int _maxLines = 6;
   bool _isHovering = false;
@@ -80,6 +80,11 @@ class _InputBarState extends State<InputBar> with TickerProviderStateMixin {
     setState(() {
       _toolsLoading = false;
     });
+  }
+
+  /// Public method to refresh tools (called when MCP agents are added/removed)
+  void refreshTools() {
+    _loadTools();
   }
 
   void _showToolsBox(BuildContext context) {

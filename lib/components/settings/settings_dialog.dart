@@ -33,7 +33,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
     ),
     _SectionItem(
       icon: Iconsax.hierarchy_2,
-      label: 'MCP Agents',
+      label: 'MCP SubAgents',
       widget: McpAgentsSection(),
     ),
   ];

@@ -1,3 +1,5 @@
+from mcp_agent import generate_mcp_agent_metadata
+from tools import MCP_TOOL_REGISTRY
 from flask import Flask, request, jsonify, Response
 from flask_cors import CORS
 from config import Config
@@ -25,8 +27,36 @@ import queue as queue_module
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from langchain_mcp_adapters.tools import load_mcp_tools
 
-from mcp_agent import generate_mcp_agent_metadata
-from tools import MCP_TOOL_REGISTRY
+try:  # Python 3.11+
+    from builtins import BaseExceptionGroup as _BaseExceptionGroup
+except ImportError:  # pragma: no cover - older Python
+    _BaseExceptionGroup = BaseException  # type: ignore[misc]
+
+
+def _summarize_exception(exc: Exception) -> str:
+    """Return the most helpful message from nested MCP connection errors."""
+
+    from httpx import HTTPStatusError
+
+    if isinstance(exc, _BaseExceptionGroup):
+        for sub in getattr(exc, "exceptions", []):
+            message = _summarize_exception(sub)  # type: ignore[arg-type]
+            if message:
+                return message
+        return str(exc)
+
+    cause = exc.__cause__ or exc.__context__
+    if cause:
+        return _summarize_exception(cause)
+
+    if isinstance(exc, HTTPStatusError):
+        status = exc.response.status_code
+        reason = exc.response.reason_phrase or ""
+        hint = " – check credentials or headers" if status in (
+            401, 403) else ""
+        return f"HTTP {status} {reason}{hint}"
+
+    return str(exc)
 
 
 class _SafeStream:
@@ -95,7 +125,11 @@ def _load_mcp_server_tools(server_name: str, server_config: dict):
                 })
             return snapshot
 
-    return asyncio.run(_load())
+    try:
+        return asyncio.run(_load())
+    except Exception as exc:  # noqa: BLE001 - convert to clearer message
+        message = _summarize_exception(exc)
+        raise RuntimeError(message) from exc
 
 
 @app.route('/api/chat', methods=['POST'])

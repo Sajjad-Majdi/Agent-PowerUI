@@ -6,6 +6,7 @@ import 'package:file_selector/file_selector.dart';
 import 'package:dotted_border/dotted_border.dart';
 import '/services/api_service.dart';
 import '/components/subunits/status_message.dart';
+import '/theme.dart';
 
 class LocalModelsSection extends StatefulWidget {
   const LocalModelsSection({Key? key}) : super(key: key);
@@ -518,18 +519,42 @@ class _LocalModelsSectionState extends State<LocalModelsSection> {
                   final confirm = await showDialog<bool>(
                     context: context,
                     builder: (context) => AlertDialog(
-                      title: Text('Delete Model'),
+                      backgroundColor: AppTheme.colors.messageBubbleColor,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20),
+                        side: BorderSide(
+                          color: AppTheme.colors.primaryColor
+                              .withValues(alpha: 0.3),
+                          width: 1.5,
+                        ),
+                      ),
+                      title: const Text(
+                        'Delete Model',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontFamily: 'Nunito',
+                        ),
+                      ),
                       content: Text(
                           'Are you sure you want to delete "${model.name}"?\n\nThis action cannot be undone.'),
                       actions: [
                         TextButton(
                           onPressed: () => Navigator.pop(context, false),
-                          child: Text('Cancel'),
+                          style: TextButton.styleFrom(
+                            foregroundColor: Colors.white70,
+                          ),
+                          child: const Text('Cancel'),
                         ),
-                        TextButton(
+                        FilledButton(
                           onPressed: () => Navigator.pop(context, true),
-                          child: Text('Delete',
-                              style: TextStyle(color: Colors.red)),
+                          style: FilledButton.styleFrom(
+                            backgroundColor: Colors.red,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                          ),
+                          child: const Text('Delete'),
                         ),
                       ],
                     ),

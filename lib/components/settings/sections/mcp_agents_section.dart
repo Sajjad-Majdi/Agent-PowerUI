@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:iconsax/iconsax.dart';
 import '/components/subunits/status_message.dart';
 import '/services/api_service.dart';
+import '/theme.dart';
 
 class McpAgentsSection extends StatefulWidget {
   const McpAgentsSection({Key? key}) : super(key: key);
@@ -109,7 +110,21 @@ class _McpAgentsSectionState extends State<McpAgentsSection> {
             }
 
             return AlertDialog(
-              title: const Text('Add MCP Agent'),
+              backgroundColor: AppTheme.colors.messageBubbleColor,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+                side: BorderSide(
+                  color: AppTheme.colors.primaryColor.withValues(alpha: 0.3),
+                  width: 1.5,
+                ),
+              ),
+              title: const Text(
+                'Add MCP Agent',
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontFamily: 'Nunito',
+                ),
+              ),
               content: SizedBox(
                 width: 500,
                 child: SingleChildScrollView(
@@ -144,22 +159,58 @@ class _McpAgentsSectionState extends State<McpAgentsSection> {
                         ),
                       TextField(
                         controller: serverNameController,
-                        decoration: const InputDecoration(
+                        decoration: InputDecoration(
                           labelText: 'Server name',
                           hintText: 'e.g., web_browser',
-                          border: OutlineInputBorder(),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(
+                              color: AppTheme.colors.primaryColor
+                                  .withValues(alpha: 0.3),
+                            ),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(
+                              color: AppTheme.colors.primaryColor,
+                              width: 2,
+                            ),
+                          ),
+                          filled: true,
+                          fillColor: AppTheme.colors.inputBarColor,
                         ),
                         enabled: !isSubmitting,
                       ),
                       const SizedBox(height: 16),
                       TextField(
                         controller: jsonConfigController,
-                        decoration: const InputDecoration(
+                        decoration: InputDecoration(
                           labelText: 'Server configuration (JSON)',
                           hintText:
                               '{\n  "command": "npx",\n  "args": ["@playwright/mcp@latest"],\n  "transport": "stdio"\n}',
-                          border: OutlineInputBorder(),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(
+                              color: AppTheme.colors.primaryColor
+                                  .withValues(alpha: 0.3),
+                            ),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(
+                              color: AppTheme.colors.primaryColor,
+                              width: 2,
+                            ),
+                          ),
                           alignLabelWithHint: true,
+                          filled: true,
+                          fillColor: AppTheme.colors.inputBarColor,
                         ),
                         maxLines: 12,
                         enabled: !isSubmitting,
@@ -600,86 +651,163 @@ class _McpAgentsSectionState extends State<McpAgentsSection> {
             }
 
             return AlertDialog(
+              backgroundColor: AppTheme.colors.messageBubbleColor,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+                side: BorderSide(
+                  color: AppTheme.colors.primaryColor.withValues(alpha: 0.3),
+                  width: 1.5,
+                ),
+              ),
               title: Text(
                 'MCP Agent Metadata',
-                style: const TextStyle(fontWeight: FontWeight.w700),
+                style: const TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontFamily: 'Nunito',
+                ),
               ),
-              content: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if (requiresManual) ...[
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: Colors.amber.withAlpha(40),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: const [
-                            Icon(Iconsax.warning_2,
-                                size: 18, color: Colors.amber),
-                            SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                'Gemini could not generate metadata automatically. Please complete the fields manually.',
-                                style: TextStyle(fontSize: 12),
+              content: SizedBox(
+                width: 500,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (requiresManual) ...[
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: Colors.amber.withAlpha(40),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: const [
+                              Icon(Iconsax.warning_2,
+                                  size: 18, color: Colors.amber),
+                              SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'Gemini could not generate metadata automatically. Please complete the fields manually.',
+                                  style: TextStyle(fontSize: 12),
+                                ),
                               ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                      ],
+                      TextField(
+                        controller: nameController,
+                        decoration: InputDecoration(
+                          labelText: 'Display name',
+                          helperText:
+                              'Short and memorable label shown in the tool box.',
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(
+                              color: AppTheme.colors.primaryColor
+                                  .withValues(alpha: 0.3),
                             ),
-                          ],
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(
+                              color: AppTheme.colors.primaryColor,
+                              width: 2,
+                            ),
+                          ),
+                          filled: true,
+                          fillColor: AppTheme.colors.inputBarColor,
                         ),
                       ),
                       const SizedBox(height: 12),
+                      TextField(
+                        controller: descriptionController,
+                        decoration: InputDecoration(
+                          labelText: 'Description',
+                          helperText:
+                              'One sentence that helps the primary agent decide when to call this MCP agent.',
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(
+                              color: AppTheme.colors.primaryColor
+                                  .withValues(alpha: 0.3),
+                            ),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(
+                              color: AppTheme.colors.primaryColor,
+                              width: 2,
+                            ),
+                          ),
+                          filled: true,
+                          fillColor: AppTheme.colors.inputBarColor,
+                        ),
+                        maxLines: 2,
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: promptController,
+                        decoration: InputDecoration(
+                          labelText: 'System prompt',
+                          helperText:
+                              'Detailed operating instructions for the MCP agent (will be sent verbatim).',
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(
+                              color: AppTheme.colors.primaryColor
+                                  .withValues(alpha: 0.3),
+                            ),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(
+                              color: AppTheme.colors.primaryColor,
+                              width: 2,
+                            ),
+                          ),
+                          filled: true,
+                          fillColor: AppTheme.colors.inputBarColor,
+                        ),
+                        maxLines: 8,
+                      ),
+                      if (error != null) ...[
+                        const SizedBox(height: 16),
+                        Text(
+                          error!,
+                          style: const TextStyle(color: Colors.red),
+                        ),
+                      ],
                     ],
-                    TextField(
-                      controller: nameController,
-                      decoration: const InputDecoration(
-                        labelText: 'Display name',
-                        helperText:
-                            'Short and memorable label shown in the tool box.',
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: descriptionController,
-                      decoration: const InputDecoration(
-                        labelText: 'Description',
-                        helperText:
-                            'One sentence that helps the primary agent decide when to call this MCP agent.',
-                      ),
-                      maxLines: 2,
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: promptController,
-                      decoration: const InputDecoration(
-                        labelText: 'System prompt',
-                        helperText:
-                            'Detailed operating instructions for the MCP agent (will be sent verbatim).',
-                      ),
-                      maxLines: 8,
-                    ),
-                    if (error != null) ...[
-                      const SizedBox(height: 16),
-                      Text(
-                        error!,
-                        style: const TextStyle(color: Colors.red),
-                      ),
-                    ],
-                  ],
+                  ),
                 ),
               ),
               actions: [
                 TextButton(
                   onPressed:
                       isSaving ? null : () => Navigator.of(context).pop(false),
+                  style: TextButton.styleFrom(
+                    foregroundColor: Colors.white70,
+                  ),
                   child: const Text('Close'),
                 ),
                 TextButton.icon(
                   onPressed:
                       isSaving || isRegenerating ? null : handleRegenerate,
+                  style: TextButton.styleFrom(
+                    foregroundColor: AppTheme.colors.primaryColor,
+                  ),
                   icon: isRegenerating
                       ? const SizedBox(
                           width: 16,
@@ -691,11 +819,21 @@ class _McpAgentsSectionState extends State<McpAgentsSection> {
                 ),
                 FilledButton(
                   onPressed: isSaving ? null : handleSave,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppTheme.colors.primaryColor,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
                   child: isSaving
                       ? const SizedBox(
                           width: 18,
                           height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
                         )
                       : const Text('Save'),
                 ),
@@ -723,17 +861,41 @@ class _McpAgentsSectionState extends State<McpAgentsSection> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Delete MCP agent'),
+        backgroundColor: AppTheme.colors.messageBubbleColor,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: BorderSide(
+            color: AppTheme.colors.primaryColor.withValues(alpha: 0.3),
+            width: 1.5,
+          ),
+        ),
+        title: const Text(
+          'Delete MCP agent',
+          style: TextStyle(
+            fontWeight: FontWeight.w700,
+            fontFamily: 'Nunito',
+          ),
+        ),
         content: Text(
             'Are you sure you want to delete "${agent.displayName}"? This cannot be undone.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
+            style: TextButton.styleFrom(
+              foregroundColor: Colors.white70,
+            ),
             child: const Text('Cancel'),
           ),
-          TextButton(
+          FilledButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Delete', style: TextStyle(color: Colors.red)),
+            style: FilledButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            child: const Text('Delete'),
           ),
         ],
       ),

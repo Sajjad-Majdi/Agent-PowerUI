@@ -27,6 +27,7 @@ class _ChatInterfaceState extends State<ChatInterface> {
   final ScrollController _scrollController = ScrollController();
   bool _isDrawerOpen = false;
   final GlobalKey<State<Sidebar>> _sidebarKey = GlobalKey<State<Sidebar>>();
+  final GlobalKey<InputBarState> _inputBarKey = GlobalKey<InputBarState>();
   List<String> _geminiModels = [];
   String? _activeGeminiModel;
   List<LocalModelInfo> _localModels = [];
@@ -360,6 +361,7 @@ class _ChatInterfaceState extends State<ChatInterface> {
                                 child: Container(
                                   margin: EdgeInsets.fromLTRB(16, 3, 16, 16),
                                   child: InputBar(
+                                    key: _inputBarKey,
                                     controller: controller,
                                     onSend: _send,
                                     onStop: () => context.read<ChatBloc>().add(
@@ -403,6 +405,8 @@ class _ChatInterfaceState extends State<ChatInterface> {
                 onSettingsClosed: () {
                   // Reload local models when settings dialog closes
                   _loadLocalModels();
+                  // Refresh toolbox to pick up new MCP agents
+                  _inputBarKey.currentState?.refreshTools();
                 },
               ),
             ),

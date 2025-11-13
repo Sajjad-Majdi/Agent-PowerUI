@@ -4,6 +4,11 @@
             "id": 1,
             "fact": "User prefers casual, conversational, and concise communication style.",
             "timestamp": "2025-11-12T23:05:10.972672"
+        },
+        {
+            "id": 2,
+            "fact": "When the user asks for the \"best model\", I should find the 8 most downloaded models.",
+            "timestamp": "2025-11-13T23:17:46.000177"
         }
     ]
 }

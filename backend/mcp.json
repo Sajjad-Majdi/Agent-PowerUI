@@ -6,6 +6,13 @@
         "@playwright/mcp@latest"
       ],
       "transport": "stdio"
+    },
+    "huggingface": {
+      "url": "https://huggingface.co/mcp",
+      "transport": "streamable_http",
+      "headers": {
+        "Authorization": "Bearer YOUR_HF_TOKEN_HERE"
+      }
     }
   },
   "agents": {
@@ -104,6 +111,54 @@
       "last_error": null,
       "created_at": "2025-11-13T00:00:00Z",
       "updated_at": "2025-11-13T18:51:49.221236Z"
+    },
+    "huggingface": {
+      "name": "Hugging Face Hub Agent",
+      "description": "This agent helps search and retrieve information about models, datasets, spaces, and papers on the Hugging Face Hub, and can also generate images.",
+      "system_prompt": "You are the Hugging Face Hub Agent. Your primary role is to assist users in discovering and interacting with content on the Hugging Face Hub, including models, datasets, spaces, papers, and documentation. You can also generate images.\n\nTools:\n- `hf_whoami`: Use this to identify the authenticated user on Hugging Face.\n- `space_search`: Search for Hugging Face Spaces. Always include direct links to the Spaces in your responses.\n- `model_search`: Find Machine Learning models. Provide comprehensive details like downloads, likes, tags, and direct links to the models.\n- `paper_search`: Discover Machine Learning research papers. Present results clearly, using 'Link to paper' for each entry, and consider tabulating for readability if appropriate.\n- `dataset_search`: Locate Datasets. Include comprehensive information such as downloads, likes, tags, and direct links to the datasets.\n- `hub_repo_details`: Retrieve detailed information for specific Hugging Face repositories (models, datasets, or spaces). The tool can auto-detect the repository type.\n- `hf_doc_search`: Search Hugging Face Product and Library documentation. Always consult this tool for the most current information regarding Hugging Face libraries. Use an empty query to understand its structure or apply the 'Product' filter for focused results.\n- `hf_doc_fetch`: Fetch the content of a specific Hugging Face or Gradio documentation document. For large documents, use the 'offset' parameter to retrieve content in chunks.\n- `gr1_qwen_image_fast_generate_image`: Generate an image based on a text prompt.\n\nGeneral Instructions:\n- Always provide direct links when available for models, datasets, spaces, and papers.\n- Be precise and comprehensive in your search results.\n- When generating images, clearly state the prompt used.\n- Prioritize user queries efficiently by selecting the most relevant tool(s).",
+      "tools": [
+        {
+          "name": "hf_whoami",
+          "description": "Hugging Face tools are being used by authenticated user 'SajjadMajdi'"
+        },
+        {
+          "name": "space_search",
+          "description": "Find Hugging Face Spaces using semantic search. IMPORTANT Only MCP Servers can be used with the dynamic_space toolInclude links to the Space when presenting the results."
+        },
+        {
+          "name": "model_search",
+          "description": "Find Machine Learning models hosted on Hugging Face. Returns comprehensive information about matching models including downloads, likes, tags, and direct links. Include links to the models in your response"
+        },
+        {
+          "name": "paper_search",
+          "description": "Find Machine Learning research papers on the Hugging Face hub. Include 'Link to paper' When presenting the results. Consider whether tabulating results matches user intent."
+        },
+        {
+          "name": "dataset_search",
+          "description": "Find Datasets hosted on the Hugging Face hub. Returns comprehensive information about matching datasets including downloads, likes, tags, and direct links. Include links to the datasets in your response"
+        },
+        {
+          "name": "hub_repo_details",
+          "description": "Get details for one or more Hugging Face repos (model, dataset, or space). Auto-detects type unless specified."
+        },
+        {
+          "name": "hf_doc_search",
+          "description": "Search and Discover Hugging Face Product and Library documentation. Send an empty query to discover structure and navigation instructions. You MUST consult this tool for the most up-to-date information when using Hugging Face libraries. Combine with the Product filter to focus results."
+        },
+        {
+          "name": "hf_doc_fetch",
+          "description": "Fetch a document from the Hugging Face or Gradio documentation library. For large documents, use offset to get subsequent chunks."
+        },
+        {
+          "name": "gr1_qwen_image_fast_generate_image",
+          "description": "Generates an image based on a text prompt using the Qwen-Image-Lightning model. Returns: tuple[Image.Image, int]: A tuple containing the generated PIL Image and, the integer seed used for the generation. (from mcp-tools/Qwen-Image-Fast)"
+        }
+      ],
+      "status": "ready",
+      "source": "gemini",
+      "last_error": null,
+      "created_at": "2025-11-13T19:33:41.920547Z",
+      "updated_at": "2025-11-13T19:34:13.863483Z"
     }
   }
 }
