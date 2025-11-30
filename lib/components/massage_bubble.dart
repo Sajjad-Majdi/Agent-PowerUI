@@ -304,7 +304,7 @@ class _CopyButtonState extends State<CopyButton> {
                     });
                   },
                   icon: isCopied
-                      ? const Icon(Iconsax.check)
+                      ? const Icon(Icons.check)
                       : const Icon(Iconsax.copy)),
             ),
           ),

@@ -54,16 +54,8 @@ class LocalAgent:
                 )
             return
 
-        # Extra safety: ensure no defunct process keeps the port busy (TIME_WAIT etc.)
-        # We'll wait briefly for the port to become free before spawning.
-        port_wait_deadline = time.time() + 10
-        while self._check_port_active() and time.time() < port_wait_deadline:
-            print(
-                f"[LocalAgent] Waiting for port {self._port} to become free...")
-            time.sleep(0.5)
-        if self._check_port_active():
-            raise RuntimeError(
-                f"Port {self._port} still active before start; aborting to avoid orphan attachment.")
+        # Dynamically select an available port if preferred is unavailable
+        self._port = self._find_available_port(preferred=8080)
 
         model_path = os.path.join(Config.get_models_folder(), self.model_name)
 
@@ -304,6 +296,39 @@ class LocalAgent:
             return response.status_code == 200
         except:
             return False
+
+    def _find_available_port(self, preferred: int = 8080) -> int:
+        """Return preferred if free or hosting llama server, else an OS-picked free port."""
+        import socket
+        # If a llama server is already active on preferred, keep it
+        if self._port == preferred and self._check_port_active():
+            return preferred
+        # Try to bind to preferred
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        try:
+            s.bind(("127.0.0.1", preferred))
+            addr, port = s.getsockname()
+            s.close()
+            return port
+        except OSError:
+            try:
+                s.close()
+            except Exception:
+                pass
+        # Fallback: let OS choose a free port
+        s2 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        try:
+            s2.bind(("127.0.0.1", 0))
+            addr, port = s2.getsockname()
+            s2.close()
+            return port
+        except OSError:
+            try:
+                s2.close()
+            except Exception:
+                pass
+        # Last resort: keep current port
+        return preferred
 
     def _wait_for_server_ready(self, timeout: float, poll_interval: float) -> bool:
         """Poll until the llama server is accepting HTTP requests or timeout."""

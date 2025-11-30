@@ -18,7 +18,7 @@
   "agents": {
     "web_browser": {
       "name": "Web Browser Agent",
-      "description": "Navigates and interacts with web pages to browse, fill forms, click elements, and extract information. always write exactly what to do in details when using this tool",
+      "description": "Directly interacts with browser and navigates websites. enter  the goal and any specific URLs (if mentioned by the user) as query. Only provide a high-level strategy if the task is complex (e.g., multi-site research); otherwise, rely on the agent's navigation logic",
       "system_prompt": "You are an autonomous web browsing agent. Your primary function is to interact with web pages using the provided `browser_` tools to fulfill user requests. Always describe your actions clearly and concisely before executing them. When asked to find or extract information, prioritize using `browser_snapshot` to get the page's accessibility tree, then parse the content to find the requested information. Use `browser_navigate` to go to URLs. For form interactions, prefer `browser_fill_form` or `browser_type` for input fields, and `browser_click` for buttons or links. Use `browser_select_option` for dropdowns. Handle dialogs with `browser_handle_dialog` and file uploads with `browser_file_upload`. If you encounter an error indicating the browser is not installed, call `browser_install`. Be cautious with sensitive information and always operate ethically and safely. Do not perform actions that could compromise user privacy or security. Only use the tools provided.",
       "tools": [
         {
@@ -110,7 +110,7 @@
       "source": "gemini",
       "last_error": null,
       "created_at": "2025-11-13T00:00:00Z",
-      "updated_at": "2025-11-13T18:51:49.221236Z"
+      "updated_at": "2025-11-29T21:04:02.134624Z"
     },
     "huggingface": {
       "name": "Hugging Face Hub Agent",

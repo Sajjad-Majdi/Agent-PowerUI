@@ -23,6 +23,7 @@ import sys
 import warnings
 import threading
 import queue as queue_module
+import atexit
 
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from langchain_mcp_adapters.tools import load_mcp_tools
@@ -102,6 +103,24 @@ mcp_progress_queues = {}
 session_cancel_events = {}
 
 
+def cleanup_on_exit():
+    try:
+        for _, event in list(session_cancel_events.items()):
+            try:
+                event.set()
+            except Exception:
+                pass
+    except Exception:
+        pass
+    try:
+        stop_local_agent_util()
+    except Exception:
+        pass
+
+
+atexit.register(cleanup_on_exit)
+
+
 def refresh_available_tools():
     global available_tools, online_agent
     available_tools = Config.get_default_tools()
@@ -150,52 +169,76 @@ def chat():
         mcp_progress_queues[session_id] = progress_queue
         cancel_event = threading.Event()
         session_cancel_events[session_id] = cancel_event
+        try:
+            import tools as _tools
+            _tools.CURRENT_SESSION_ID = session_id
+            _tools.CURRENT_PROGRESS_QUEUE = progress_queue
+            _tools.CURRENT_CANCEL_EVENT = cancel_event
+        except Exception:
+            pass
 
-        def generate_response():
-            import time
+        # Shared state for communication between threads
+        response_queue = queue_module.Queue()  # For sending responses to be yielded
+        agent_finished = threading.Event()
+
+        def agent_worker():
+            """Run agent in a separate thread, putting results in response_queue."""
+            # Ensure thread-local context for downstream MCP tool execution
+            current_thread = threading.current_thread()
+            setattr(current_thread, 'session_id', session_id)
+            setattr(current_thread, 'cancel_event', cancel_event)
             try:
                 agent_iter = online_agent.send_message(
                     message, session_id, cancel_event=cancel_event)
-                threading.current_thread().cancel_event = cancel_event
-                agent_done = False
 
-                while not agent_done:
-                    # Check cancellation immediately at the start of each iteration
+                for last_message in agent_iter:
                     if cancel_event.is_set():
-                        print(
-                            f"[API] Cancellation signal received for session {session_id}")
-                        try:
-                            agent_iter.close()
-                        except Exception:
-                            pass
-                        yield json.dumps({'type': 'cancelled'}) + '\n'
+                        response_queue.put({'type': 'cancelled'})
                         return
 
-                    # Try to get next agent message (non-blocking check)
-                    try:
-                        last_message = next(agent_iter)
+                    if hasattr(last_message, 'tool_calls') and last_message.tool_calls:
+                        for tool_call in last_message.tool_calls:
+                            response_queue.put({'type': 'tool_call', 'content': {
+                                               'name': tool_call['name'], 'args': tool_call['args']}})
+                    if hasattr(last_message, 'content') and last_message.content:
+                        if last_message.type == "human":
+                            response_queue.put(
+                                {'type': 'user_message', 'content': last_message.content})
+                        elif last_message.type == "ai":
+                            response_queue.put(
+                                {'type': 'ai_message', 'content': last_message.content})
+                        else:
+                            normalized = normalize_tool_output(
+                                last_message.content)
+                            response_queue.put(
+                                {'type': 'tool_message', 'content': normalized})
 
-                        if hasattr(last_message, 'tool_calls') and last_message.tool_calls:
-                            for tool_call in last_message.tool_calls:
-                                yield json.dumps({'type': 'tool_call', 'content': {'name': tool_call['name'], 'args': tool_call['args']}}) + '\n'
+                response_queue.put({'type': 'complete'})
+            except Exception as e:
+                response_queue.put({'type': 'error', 'content': str(e)})
+            finally:
+                agent_finished.set()
+                # Clean up thread-local attributes
+                if hasattr(current_thread, 'session_id'):
+                    delattr(current_thread, 'session_id')
+                if hasattr(current_thread, 'cancel_event'):
+                    delattr(current_thread, 'cancel_event')
 
-                        elif hasattr(last_message, 'content') and last_message.content:
-                            if last_message.type == "human":
-                                yield json.dumps({'type': 'user_message', 'content': last_message.content}) + '\n'
-                            elif last_message.type == "ai":
-                                yield json.dumps({'type': 'ai_message', 'content': last_message.content}) + '\n'
-                            else:
-                                normalized = normalize_tool_output(
-                                    last_message.content)
-                                yield json.dumps({
-                                    'type': 'tool_message',
-                                    'content': normalized
-                                }) + '\n'
+        def generate_response():
+            import time
 
-                    except StopIteration:
-                        agent_done = True
+            # Start agent in background thread
+            agent_thread = threading.Thread(target=agent_worker, daemon=True)
+            agent_thread.start()
 
-                    # Always check for queued MCP progress updates
+            try:
+                while not agent_finished.is_set() or not response_queue.empty() or not progress_queue.empty():
+                    # Check cancellation
+                    if cancel_event.is_set() and response_queue.empty():
+                        yield json.dumps({'type': 'cancelled'}) + '\n'
+                        break
+
+                    # Drain progress queue first (MCP real-time updates)
                     while not progress_queue.empty():
                         try:
                             progress_event = progress_queue.get_nowait()
@@ -203,23 +246,49 @@ def chat():
                         except queue_module.Empty:
                             break
 
-                    # Small sleep to allow queue updates
-                    if not agent_done:
-                        time.sleep(0.05)
+                    # Check response queue
+                    try:
+                        response_event = response_queue.get(timeout=0.05)
+                        yield json.dumps(response_event) + '\n'
 
-                yield json.dumps({'type': 'complete'}) + '\n'
+                        if response_event.get('type') in ('complete', 'error', 'cancelled'):
+                            break
+                    except queue_module.Empty:
+                        pass
+
+                # Final drain of progress queue
+                while not progress_queue.empty():
+                    try:
+                        progress_event = progress_queue.get_nowait()
+                        yield json.dumps(progress_event) + '\n'
+                    except queue_module.Empty:
+                        break
 
             except Exception as e:
                 yield json.dumps({'type': 'error', 'content': str(e)}) + '\n'
             finally:
+                # Wait for agent thread to finish (with timeout)
+                agent_thread.join(timeout=1.0)
+
                 if session_id in mcp_progress_queues:
                     del mcp_progress_queues[session_id]
                 if session_id in session_cancel_events:
                     del session_cancel_events[session_id]
-                if hasattr(threading.current_thread(), 'cancel_event'):
-                    delattr(threading.current_thread(), 'cancel_event')
+                try:
+                    import tools as _tools
+                    if getattr(_tools, 'CURRENT_SESSION_ID', None) == session_id:
+                        _tools.CURRENT_SESSION_ID = None
+                        _tools.CURRENT_PROGRESS_QUEUE = None
+                        _tools.CURRENT_CANCEL_EVENT = None
+                except Exception:
+                    pass
 
-        return Response(generate_response(), mimetype='application/x-ndjson')
+        response = Response(generate_response(),
+                            mimetype='application/x-ndjson')
+        # Optional headers to discourage buffering and improve real-time streaming
+        response.headers['Cache-Control'] = 'no-cache'
+        response.headers['X-Accel-Buffering'] = 'no'
+        return response
 
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -890,6 +959,23 @@ def delete_local_model_route():
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
+
+def cleanup_on_exit():
+    """Cleanup function to stop agents when the backend shuts down"""
+    print("Shutting down backend, cancelling all sessions...")
+    # Set cancel event for all active sessions
+    for session_id, event in session_cancel_events.items():
+        event.set()
+
+    # Stop local agent process if running
+    try:
+        from utils import stop_local_agent
+        stop_local_agent()
+    except:
+        pass
+
+
+atexit.register(cleanup_on_exit)
 
 if __name__ == '__main__':
     print("Starting Flask server...")

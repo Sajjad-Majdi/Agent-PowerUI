@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 
@@ -27,7 +26,8 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
   String _toolMarkers = '';
   Map<String, ToolCallState> _toolCallStates = {};
   int _toolCallCounter = 0;
-  String? _pendingToolCallId;
+  // Track pending tool calls in order - when tool_message arrives, it completes the first pending one
+  List<String> _pendingToolCallIds = [];
   int? _toolMessageIndex;
   int? _aiMessageIndex;
 
@@ -35,7 +35,7 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
     _toolMarkers = '';
     _toolCallStates = {};
     _toolCallCounter = 0;
-    _pendingToolCallId = null;
+    _pendingToolCallIds = [];
     _toolMessageIndex = null;
     _aiMessageIndex = null;
   }
@@ -92,9 +92,10 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
     _userCancelled = true;
 
     // Mark any in-progress tool calls as cancelled immediately
-    _toolCallStates.forEach((id, state) {
-      if (state.status == 'in_progress') {
-        _toolCallStates[id] = ToolCallState(
+    for (final toolId in _pendingToolCallIds) {
+      final state = _toolCallStates[toolId];
+      if (state != null && state.status == 'in_progress') {
+        _toolCallStates[toolId] = ToolCallState(
           toolName: state.toolName,
           toolArgs: state.toolArgs,
           status: 'cancelled',
@@ -103,7 +104,7 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
           resultText: 'Cancelled',
         );
       }
-    });
+    }
     if (_toolMessageIndex != null) {
       _activeMessages[_toolMessageIndex!].toolCallStates =
           Map.from(_toolCallStates);
@@ -135,25 +136,50 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
 
     if (type == 'mcp_progress') {
       final dynamic content = chunk['content'];
-      if (content is Map<String, dynamic> && _pendingToolCallId != null) {
-        final stepsData = content['steps'];
-        if (stepsData is List &&
-            _toolCallStates.containsKey(_pendingToolCallId)) {
-          final extracted = <ToolStepState>[];
-          for (final entry in stepsData) {
-            if (entry is Map) {
-              extracted.add(
-                ToolStepState.fromMap(Map<String, dynamic>.from(entry)),
-              );
+      if (content is Map<String, dynamic>) {
+        // Find which pending MCP tool call this progress belongs to
+        // MCP progress is associated with the most recent MCP tool call that's still in progress
+        String? targetToolId;
+        for (final toolId in _pendingToolCallIds) {
+          final toolState = _toolCallStates[toolId];
+          if (toolState != null &&
+              (toolState.status == 'in_progress' ||
+                  toolState.status == 'initializing') &&
+              toolState.toolName.toLowerCase().startsWith('mcp')) {
+            targetToolId = toolId;
+            break;
+          }
+        }
+
+        if (targetToolId != null && _toolCallStates.containsKey(targetToolId)) {
+          final stepsData = content['steps'];
+          List<ToolStepState> extracted = [];
+          if (stepsData is List) {
+            for (final entry in stepsData) {
+              if (entry is Map) {
+                extracted.add(
+                  ToolStepState.fromMap(Map<String, dynamic>.from(entry)),
+                );
+              }
             }
           }
 
-          final previous = _toolCallStates[_pendingToolCallId]!;
-          _toolCallStates[_pendingToolCallId!] = ToolCallState(
+          final previous = _toolCallStates[targetToolId]!;
+          final mcpStatus = content['status']?.toString() ?? 'in_progress';
+          ToolStepState? activeStep;
+          for (final s in extracted.reversed) {
+            if (s.status == 'in_progress') {
+              activeStep = s;
+              break;
+            }
+          }
+
+          _toolCallStates[targetToolId] = ToolCallState(
             toolName: previous.toolName,
-            toolArgs: previous.toolArgs,
-            status: 'in_progress',
-            steps: extracted,
+            toolArgs: activeStep?.args ?? previous.toolArgs,
+            status:
+                mcpStatus == 'initializing' ? 'initializing' : 'in_progress',
+            steps: extracted.isNotEmpty ? extracted : previous.steps,
             currentTool: content['current_tool']?.toString(),
           );
 
@@ -168,23 +194,44 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
       final toolData = chunk['content'] as Map<String, dynamic>;
       final incomingName = toolData['name'] ?? 'Unknown Tool';
       final incomingArgs = Map<String, dynamic>.from(toolData['args'] ?? {});
-      final incomingArgsKey = jsonEncode(incomingArgs);
-
+      
+      // Check if we have a pending tool call with the same name that is in progress
+      // We prioritize the most recent pending tool call of the same name
       String? existingPendingId;
-      _toolCallStates.forEach((id, state) {
-        if (state.status == 'in_progress' &&
-            state.toolName == incomingName &&
-            jsonEncode(state.toolArgs) == incomingArgsKey) {
+      
+      // Iterate in reverse to find the most recently added pending tool call
+      for (final id in _pendingToolCallIds.reversed) {
+        final state = _toolCallStates[id];
+        if (state != null && 
+            state.status == 'in_progress' && 
+            state.toolName == incomingName) {
           existingPendingId = id;
+          break;
         }
-      });
+      }
 
       if (existingPendingId != null) {
-        _pendingToolCallId = existingPendingId;
+        // Update existing tool call with new args
+        final currentState = _toolCallStates[existingPendingId]!;
+        _toolCallStates[existingPendingId] = ToolCallState(
+          toolName: currentState.toolName,
+          toolArgs: incomingArgs, // Update with latest args
+          status: 'in_progress',
+          steps: currentState.steps,
+        );
+        
+        // Update message text to trigger rebuild if needed
+        if (_toolMessageIndex != null) {
+           _activeMessages[_toolMessageIndex!].toolCallStates =
+            Map.from(_toolCallStates);
+        }
       } else {
+        // Create new tool call entry
         _toolCallCounter++;
         final toolId = 'tool_$_toolCallCounter';
-        _pendingToolCallId = toolId;
+
+        // Add to pending list for FIFO matching with tool_message
+        _pendingToolCallIds.add(toolId);
 
         _toolCallStates[toolId] = ToolCallState(
           toolName: incomingName,
@@ -214,9 +261,16 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
       emit(ChatLoading(_activeMessages, sessionId));
     } else if (type == 'tool_message') {
       final dynamic content = chunk['content'];
-      if (_pendingToolCallId != null &&
-          _toolCallStates.containsKey(_pendingToolCallId)) {
-        final previous = _toolCallStates[_pendingToolCallId]!;
+
+      // Find the first pending tool call to complete (FIFO order)
+      String? completedToolId;
+      if (_pendingToolCallIds.isNotEmpty) {
+        completedToolId = _pendingToolCallIds.first;
+      }
+
+      if (completedToolId != null &&
+          _toolCallStates.containsKey(completedToolId)) {
+        final previous = _toolCallStates[completedToolId]!;
 
         List<ToolStepState> parsedSteps = previous.steps;
         String? currentTool;
@@ -257,7 +311,7 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
           }
         }
 
-        _toolCallStates[_pendingToolCallId!] = ToolCallState(
+        _toolCallStates[completedToolId] = ToolCallState(
           toolName: previous.toolName,
           toolArgs: previous.toolArgs,
           status: statusValue,
@@ -266,15 +320,17 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
           resultText: resultText,
         );
 
+        // Remove from pending list
+        _pendingToolCallIds.remove(completedToolId);
+
         if (_toolMessageIndex != null) {
           _activeMessages[_toolMessageIndex!].toolCallStates =
               Map.from(_toolCallStates);
           _activeMessages[_toolMessageIndex!].text = _toolMarkers;
-          _activeMessages.removeWhere((m) => m.isLoading == true);
-          _activeMessages.add(ChatMessage(isMe: false, isLoading: true));
+
+          // Do not append a bottom loading spinner here; UI should update from stream events
           emit(ChatLoading(_activeMessages, sessionId));
         }
-        _pendingToolCallId = null;
       }
     } else if (type == 'ai_message') {
       final aiText = chunk['content'] ?? '';
@@ -305,9 +361,10 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
       );
     } else if (type == 'cancelled') {
       // Mark any in-progress tool calls as cancelled
-      _toolCallStates.forEach((id, state) {
-        if (state.status == 'in_progress') {
-          _toolCallStates[id] = ToolCallState(
+      for (final toolId in _pendingToolCallIds) {
+        final state = _toolCallStates[toolId];
+        if (state != null && state.status == 'in_progress') {
+          _toolCallStates[toolId] = ToolCallState(
             toolName: state.toolName,
             toolArgs: state.toolArgs,
             status: 'cancelled',
@@ -316,7 +373,7 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
             resultText: 'Cancelled',
           );
         }
-      });
+      }
       if (_toolMessageIndex != null) {
         _activeMessages[_toolMessageIndex!].toolCallStates =
             Map.from(_toolCallStates);

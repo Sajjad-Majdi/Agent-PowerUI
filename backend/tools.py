@@ -13,42 +13,65 @@ from utils import (
     update_mcp_progress,
 )
 import asyncio
+import threading
 from mcp_agent import MCPAgent
-
 
 MCP_TOOL_REGISTRY: Dict[str, Dict[str, Any]] = {}
 
-
-def _metadata_is_ready(metadata: Optional[Dict[str, Any]]) -> bool:
-    if not metadata:
-        return False
-    required_fields = ['name', 'description', 'system_prompt']
-    if metadata.get('status') not in {'ready', 'seed'}:
-        return False
-    return all(isinstance(metadata.get(field), str) and metadata.get(field).strip() for field in required_fields)
+# Fallback globals
+CURRENT_SESSION_ID: Optional[str] = None
+CURRENT_PROGRESS_QUEUE = None
+CURRENT_CANCEL_EVENT = None
 
 
-def _resolve_mcp_progress_channels():
+def _resolve_mcp_progress_channels(session_id_arg=None):
+    """Resolve progress queue and cancel event."""
     progress_queue = None
     cancel_event = None
-    try:
-        from api import mcp_progress_queues
-        import threading
+    session_id = session_id_arg
 
-        session_id = getattr(threading.current_thread(), 'session_id', None)
-        if session_id and session_id in mcp_progress_queues:
-            progress_queue = mcp_progress_queues[session_id]
-        cancel_event = getattr(
-            threading.current_thread(), 'cancel_event', None)
+    try:
+        from api import mcp_progress_queues, session_cancel_events
+
+        # 1. Try to get from thread local storage
+        if not session_id:
+            session_id = getattr(
+                threading.current_thread(), 'session_id', None)
+
+        # 2. Resolve objects using session_id
+        if session_id:
+            progress_queue = mcp_progress_queues.get(session_id)
+            cancel_event = session_cancel_events.get(session_id)
+
+        # 3. Fallbacks
+        if not progress_queue and CURRENT_PROGRESS_QUEUE:
+            progress_queue = CURRENT_PROGRESS_QUEUE
+        if not cancel_event and CURRENT_CANCEL_EVENT:
+            cancel_event = CURRENT_CANCEL_EVENT
+
     except Exception:
         pass
-    return progress_queue, cancel_event
+
+    return progress_queue, cancel_event, session_id
 
 
-def _run_mcp_agent_session(server_name: str, server_config: Dict[str, Any], system_prompt: str, query: str) -> str:
+def _run_mcp_agent_session(server_name: str, server_config: Dict[str, Any], system_prompt: str, query: str,
+                           progress_queue=None, cancel_event=None, session_id=None) -> str:
+    """Async execution logic for the MCP agent."""
+
     async def run():
         if not system_prompt or not system_prompt.strip():
-            return json.dumps({'status': 'error', 'result': 'Error: MCP agent system prompt is required but not configured.'})
+            return json.dumps({'status': 'error', 'result': 'Error: MCP agent system prompt is required.'})
+
+        # Initialize progress
+        if progress_queue is not None:
+            try:
+                progress_queue.put_nowait({
+                    'type': 'mcp_progress',
+                    'content': {'status': 'initializing', 'steps': [], 'current_tool': None}
+                })
+            except Exception:
+                pass
 
         agent = MCPAgent(
             mcp_config={server_name: server_config},
@@ -56,43 +79,100 @@ def _run_mcp_agent_session(server_name: str, server_config: Dict[str, Any], syst
         )
 
         tracker = create_mcp_progress_tracker()
-        progress_queue, cancel_event = _resolve_mcp_progress_channels()
 
         try:
             async for response in agent.run_agent(query):
+                # CRITICAL: Check cancellation inside the loop
                 if cancel_event is not None and cancel_event.is_set():
-                    raise asyncio.CancelledError()
+                    raise asyncio.CancelledError("User cancelled operation")
 
                 tracker = update_mcp_progress(tracker, response)
 
                 if progress_queue is not None and response.get('type') in {'tool_call', 'tool_message'}:
-                    step_event = {
-                        'type': 'mcp_progress',
-                        'content': {
-                            'steps': tracker['steps'],
-                            'current_tool': tracker.get('current_tool')
-                        }
-                    }
                     try:
-                        progress_queue.put_nowait(step_event)
+                        progress_queue.put_nowait({
+                            'type': 'mcp_progress',
+                            'content': {
+                                'status': 'in_progress',
+                                'steps': tracker['steps'],
+                                'current_tool': tracker.get('current_tool')
+                            }
+                        })
                     except Exception:
                         pass
-        except asyncio.CancelledError:
-            return json.dumps({'status': 'cancelled', 'result': 'Cancelled by user'})
 
-        payload = build_mcp_progress_payload(tracker)
-        return json.dumps(payload, ensure_ascii=False)
+        except asyncio.CancelledError:
+            # IMMEDIATE STOP SIGNAL
+            return json.dumps({'status': 'cancelled', 'result': 'Create NO MORE queries. Task cancelled by user.'})
+        except Exception as e:
+            tracker['error'] = str(e)
+            return json.dumps(build_mcp_progress_payload(tracker), ensure_ascii=False)
+
+        return json.dumps(build_mcp_progress_payload(tracker), ensure_ascii=False)
 
     try:
+        # Create a fresh event loop for this thread
         return asyncio.run(run())
     except Exception as exc:
-        import traceback
-        traceback.print_exc()
-        return f"Error: {exc}"
+        return f"Error executing MCP agent: {exc}"
 
 
 def _execute_mcp_agent_tool(server_name: str, server_config: Dict[str, Any], system_prompt: str, query: str) -> str:
-    return _run_mcp_agent_session(server_name, server_config, system_prompt, query)
+    """
+    Entry point for the tool. Spawns a DAEMON thread to allow immediate cancellation.
+    """
+    # 1. Capture context from the calling thread (Main Agent Thread)
+    calling_thread_session_id = getattr(
+        threading.current_thread(), 'session_id', None)
+    calling_thread_cancel_event = getattr(
+        threading.current_thread(), 'cancel_event', None)
+
+    progress_queue, cancel_event, session_id = _resolve_mcp_progress_channels(
+        calling_thread_session_id)
+
+    # Fallback for cancel event
+    if not cancel_event and calling_thread_cancel_event:
+        cancel_event = calling_thread_cancel_event
+
+    # 2. Define wrapper for the new thread
+    def target_wrapper():
+        # Inject context into the new thread
+        ct = threading.current_thread()
+        ct.session_id = session_id
+        ct.cancel_event = cancel_event
+
+        return _run_mcp_agent_session(
+            server_name, server_config, system_prompt, query,
+            progress_queue, cancel_event, session_id
+        )
+
+    # Container to hold result from the thread
+    result_container = {"output": None, "error": None}
+
+    def thread_run():
+        try:
+            result_container["output"] = target_wrapper()
+        except Exception as e:
+            result_container["error"] = str(e)
+
+    # 3. CRITICAL FIX: Spawn a DAEMON thread
+    # Daemon means if the main app dies, this thread dies instantly.
+    t = threading.Thread(target=thread_run, daemon=True)
+    t.start()
+
+    # 4. Wait loop with cancellation check
+    # We check every 0.2s if the user pressed cancel.
+    while t.is_alive():
+        t.join(timeout=0.2)
+        if cancel_event and cancel_event.is_set():
+            # If cancelled, WE RETURN IMMEDIATELY.
+            # We do NOT wait for the thread to finish. The thread becomes a "ghost" and dies eventually.
+            return json.dumps({'status': 'cancelled', 'result': 'STOP immediately. User cancelled.'})
+
+    if result_container["error"]:
+        return f"Error in MCP execution: {result_container['error']}"
+
+    return result_container["output"] or "No output returned."
 
 
 def build_mcp_agent_toolset() -> List[Tool]:
@@ -100,19 +180,21 @@ def build_mcp_agent_toolset() -> List[Tool]:
     toolset: List[Tool] = []
     for entry in Config.list_mcp_agents():
         metadata = entry.get('metadata') if isinstance(entry, dict) else None
-        if not _metadata_is_ready(metadata):
+
+        # We removed strict metadata checks to ensure tools load even if metadata is partial
+        if not metadata:
             continue
 
         server_name = entry['name']
         server_config = entry['config']
         display_name = metadata.get('name', server_name).strip()
-        description = metadata.get('description', '').strip(
-        ) or f"Delegated MCP agent for {server_name}."
+        description = metadata.get(
+            'description', '') or f"Delegated MCP agent for {server_name}."
         system_prompt = metadata.get('system_prompt', '').strip()
 
-        # Sanitize tool name for LangChain (must be alphanumeric, underscores, dots, colons, dashes)
         tool_name = f"mcp_{server_name}"
 
+        # Use partial to bake arguments into the function
         runner = partial(_execute_mcp_agent_tool, server_name,
                          server_config, system_prompt)
         runner.__name__ = f"{tool_name}_func"
@@ -133,6 +215,18 @@ def build_mcp_agent_toolset() -> List[Tool]:
         toolset.append(tool)
 
     return toolset
+
+
+@tool
+def think_tool(thought: str) -> str:
+    """
+    Internal tool to log your thoughts/plans without displaying them to the user. 
+
+    Args:
+        thought (str): The thought/plan to log.
+    """
+    # For now, just return a confirmation message
+    return "Thought logged internally."
 
 
 @tool
