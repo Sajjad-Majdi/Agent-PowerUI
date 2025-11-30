@@ -32,11 +32,6 @@
     ],
     "User Preferences": [
         {
-            "id": 1,
-            "fact": "The user downloads movies from zarfilm.com.",
-            "timestamp": "2025-11-29T21:43:53.086856"
-        },
-        {
             "id": 2,
             "fact": "The user downloads movies from zarfilm.com. The user is interested in the latest sci-fi movies.",
             "timestamp": "2025-11-30T01:12:48.388739"

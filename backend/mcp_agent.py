@@ -1,7 +1,6 @@
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from langchain_mcp_adapters.tools import load_mcp_tools
 from langchain.chat_models import init_chat_model
-from langgraph.prebuilt import create_react_agent
 from langgraph.checkpoint.memory import MemorySaver
 from langchain_openai import ChatOpenAI
 from langgraph.graph import StateGraph, MessagesState, START, END
@@ -10,7 +9,6 @@ from typing import Annotated, Any, Dict, List, Optional, Type
 from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
 from langgraph.graph.message import add_messages
 from langchain_core.pydantic_v1 import BaseModel, Field, ValidationError
-
 from config import Config
 import asyncio
 import logging
@@ -42,7 +40,7 @@ silence_gemini_schema_warnings()
 
 
 class MCPAgent:
-    def __init__(self, model_name: str = "gemini-2.5-flash", mcp_config: dict = None, system_prompt: str = ""):
+    def __init__(self, model_name: str = "gemini-2.5-flash", mcp_config: dict = None, extra_tools: List[Any] = None, system_prompt: str = ""):
         """
         Initialize MCP Agent. Automatically uses local llama server if running, 
         otherwise falls back to Gemini.
@@ -81,6 +79,7 @@ class MCPAgent:
         self.system_prompt = system_prompt
         self.checkpointer = MemorySaver()
         self.agent = None
+        self.extra_tools = extra_tools or []
         self.thread_id = f"mcp-{uuid.uuid4().hex}"
 
     def print_state(self):
@@ -207,9 +206,9 @@ class MCPAgent:
         print(f"Connecting to MCP server: {mcp_name}")
 
         async with client.session(mcp_name) as session:
-            tools = await load_mcp_tools(session)
-            print(f"got \033[91m{len(tools)}\033[0m MCP tools")
-
+            mcp_tools = await load_mcp_tools(session)
+            print(f"got \033[91m{len(mcp_tools)}\033[0m MCP tools")
+            tools = mcp_tools + self.extra_tools
             # Create custom agent with pruning
             self.agent = self.create_custom_agent_graph(tools)
 

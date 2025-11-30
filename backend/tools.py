@@ -76,6 +76,7 @@ def _run_mcp_agent_session(server_name: str, server_config: Dict[str, Any], syst
         agent = MCPAgent(
             mcp_config={server_name: server_config},
             system_prompt=system_prompt,
+            extra_tools=[think_tool]
         )
 
         tracker = create_mcp_progress_tracker()
@@ -175,7 +176,7 @@ def _execute_mcp_agent_tool(server_name: str, server_config: Dict[str, Any], sys
     return result_container["output"] or "No output returned."
 
 
-def build_mcp_agent_toolset() -> List[Tool]:
+def build_mcp_subagents() -> List[Tool]:
     MCP_TOOL_REGISTRY.clear()
     toolset: List[Tool] = []
     for entry in Config.list_mcp_agents():

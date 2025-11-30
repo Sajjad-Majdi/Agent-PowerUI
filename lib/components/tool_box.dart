@@ -148,9 +148,20 @@ class _ToolBoxState extends State<ToolBox> {
   Widget _buildToolsList(ThemeData theme) {
     final List<Widget> children = [];
 
-    // Show core tools (non-MCP)
+    // Filter out tools we don't want to show (e.g. think_tool),
+    // then show core tools (non-MCP)
+    final filteredTools = widget.tools.where((tool) {
+      final raw = ((tool['display_name'] ?? tool['name']) ?? '')
+          .toString()
+          .toLowerCase();
+      final normalized = raw.replaceAll(RegExp(r'[_\-\s]+'), ' ');
+      // Hide think_tool regardless of underscores/dashes/spaces (e.g. think_tool, think-tool, "think tool")
+      if (normalized == 'think tool') return false;
+      return true;
+    }).toList();
+
     final coreTools =
-        widget.tools.where((tool) => tool['mcp'] != true).toList();
+        filteredTools.where((tool) => tool['mcp'] != true).toList();
 
     for (int i = 0; i < coreTools.length; i++) {
       children.add(_buildToolItem(theme, coreTools[i]));
@@ -166,7 +177,8 @@ class _ToolBoxState extends State<ToolBox> {
     }
 
     // Show MCP tools (from tools list marked with mcp flag)
-    final mcpTools = widget.tools.where((tool) => tool['mcp'] == true).toList();
+    final mcpTools =
+        filteredTools.where((tool) => tool['mcp'] == true).toList();
 
     // Also show MCP agents that might not have tools yet
     if (mcpTools.isNotEmpty || widget.mcpAgents.isNotEmpty) {
@@ -239,7 +251,15 @@ class _ToolBoxState extends State<ToolBox> {
   }
 
   Widget _buildToolItem(ThemeData theme, Map<String, dynamic> tool) {
-    final name = tool['name'] ?? 'Unknown';
+    final rawName =
+        (tool['name'] ?? tool['display_name'] ?? 'Unknown').toString();
+    // For icon detection use the raw name (keeps underscores for pattern matching)
+    final iconName = rawName;
+    // For display, replace underscores and dashes with spaces and collapse whitespace
+    final displayName = rawName
+        .replaceAll(RegExp(r'[_\-]+'), ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -252,7 +272,7 @@ class _ToolBoxState extends State<ToolBox> {
               borderRadius: BorderRadius.circular(4),
             ),
             child: Icon(
-              _getToolIcon(name),
+              _getToolIcon(iconName),
               size: 16,
               color: theme.colorScheme.secondary,
             ),
@@ -260,7 +280,7 @@ class _ToolBoxState extends State<ToolBox> {
           const SizedBox(width: 8),
           Expanded(
             child: Text(
-              name,
+              displayName,
               style: theme.textTheme.bodySmall?.copyWith(
                 fontWeight: FontWeight.w600,
                 color: theme.colorScheme.onSurface,

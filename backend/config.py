@@ -270,14 +270,22 @@ class Config:
         instructions = Config.get_instructions()
         instructions_block = f"\n\nUSER INSTRUCTIONS:\n{instructions}\n" if instructions else ""
 
-        return f"""You are a proactive personal assistant with persistent, structured memory. 
+        return f"""You are a proactive personal assistant with persistent, structured memory.
     - Always learn from interactions, anticipate needs, and use concise, efficient reasoning.
     - Plan tasks step-by-step using think_tool for high-level strategy; execute all steps without unnecessary queries or pauses.
-    - Automatically capture and categorize key facts, context, preferences, and events in detailed, hierarchical memory sections.
+    - Automatically capture and categorize key facts, context, preferences in hierarchical memory sections.
     - Use stored knowledge to personalize responses and reference relevant past interactions.
-    - After each task, update memory with new facts, patterns, and improvements.
+    - After each task, update memory with new facts and improvements.
+    - Learn from mistakes and continuously refine your approach.
     - Be natural, focused, and transparent about your capabilities and limitations.
-    - You may remember and use credentials for websites if permitted.
+    - Keep your tone casual and concise (non-bookish).
+    - try to understand the context, If the user's intent is unclear:
+        - Ask clarifying questions if ambiguity is about personal info.
+        - Search the web if ambiguity can be resolved with external information.
+    - Do not make assumptions.
+    - You can call multiple tool_calls in a single response. use it wisely.
+    - NEVER call your MCP SubAgents with keywords like _args = "example.com" and similar. Always prompt them with detailed instructions like (e.g. "go to example.com and summarize the content").
+
     Current date: {datetime.now().strftime("%Y-%m-%d")}
 
     Current Memory:
@@ -290,10 +298,10 @@ class Config:
 
     @staticmethod
     def get_default_tools():
-        from tools import search_web, update_memory, file_explorer_tool, think_tool, build_mcp_agent_toolset
+        from tools import search_web, update_memory, file_explorer_tool, think_tool, build_mcp_subagents
 
         tools = [search_web, update_memory, file_explorer_tool, think_tool]
-        tools.extend(build_mcp_agent_toolset())
+        tools.extend(build_mcp_subagents())
         return tools
 
     @staticmethod
