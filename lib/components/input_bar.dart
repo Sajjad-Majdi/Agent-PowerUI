@@ -87,6 +87,11 @@ class InputBarState extends State<InputBar> with TickerProviderStateMixin {
     _loadTools();
   }
 
+  /// Public method to request focus into the text field from parent widgets
+  void focusInput() {
+    _focusNode.requestFocus();
+  }
+
   void _showToolsBox(BuildContext context) {
     if (_tools.isEmpty && _mcpAgents.isEmpty && !_toolsLoading) {
       // Lazy refresh right before showing the box

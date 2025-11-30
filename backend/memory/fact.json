@@ -35,6 +35,23 @@
             "id": 2,
             "fact": "The user downloads movies from zarfilm.com. The user is interested in the latest sci-fi movies.",
             "timestamp": "2025-11-30T01:12:48.388739"
+        },
+        {
+            "id": 2,
+            "fact": "Downtime preference is usually watching movies.",
+            "timestamp": "2025-12-01T02:43:20.691652"
+        }
+    ],
+    "User Interests & Activities": [
+        {
+            "id": 1,
+            "fact": "Primary activities include programming and watching movies.",
+            "timestamp": "2025-12-01T02:43:18.247066"
+        },
+        {
+            "id": 2,
+            "fact": "Specific interests include Artificial Intelligence (AI), the future, and reading poetry in praise of Amir al-Mu'minin.",
+            "timestamp": "2025-12-01T02:43:19.428298"
         }
     ]
 }

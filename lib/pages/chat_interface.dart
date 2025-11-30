@@ -22,6 +22,63 @@ class ChatInterface extends StatefulWidget {
   State<ChatInterface> createState() => _ChatInterfaceState();
 }
 
+class _SuggestionChip extends StatelessWidget {
+  final String text;
+  final IconData icon;
+  final VoidCallback onTap;
+  final bool fullWidth;
+
+  const _SuggestionChip(
+      {Key? key,
+      required this.text,
+      required this.icon,
+      required this.onTap,
+      this.fullWidth = false})
+      : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final chip = InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: Colors.transparent,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: theme.colorScheme.outline.withAlpha(80),
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.max,
+          children: [
+            Icon(icon, size: 16, color: theme.colorScheme.onSurface),
+            SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                text,
+                style: TextStyle(
+                  color: theme.colorScheme.onSurface,
+                  fontSize: 14,
+                ),
+                overflow: TextOverflow.ellipsis,
+                maxLines: 2,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (fullWidth) {
+      return SizedBox(width: double.infinity, child: chip);
+    }
+    return chip;
+  }
+}
+
 class _ChatInterfaceState extends State<ChatInterface> {
   final TextEditingController controller = TextEditingController();
   final ScrollController _scrollController = ScrollController();
@@ -352,27 +409,134 @@ class _ChatInterfaceState extends State<ChatInterface> {
                               ),
                             ),
                           ),
-                          Align(
-                            alignment: Alignment.bottomCenter,
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(12),
-                              child: BackdropFilter(
-                                filter: ImageFilter.blur(sigmaX: 3, sigmaY: 3),
-                                child: Container(
-                                  margin: EdgeInsets.fromLTRB(16, 3, 16, 16),
-                                  child: InputBar(
-                                    key: _inputBarKey,
-                                    controller: controller,
-                                    onSend: _send,
-                                    onStop: () => context.read<ChatBloc>().add(
-                                          StopStreaming(),
+                          // If there are no messages in the current session, show
+                          // the input bar centered vertically with suggested prompts
+                          if (state.messages.isEmpty)
+                            Center(
+                              child: Padding(
+                                // increased top margin so input appears lower on screen
+                                padding: const EdgeInsets.fromLTRB(
+                                    16.0, 120.0, 16.0, 40.0),
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    SizedBox(
+                                      height: 40,
+                                    ),
+                                    ClipRRect(
+                                      borderRadius: BorderRadius.circular(12),
+                                      child: BackdropFilter(
+                                        filter: ImageFilter.blur(
+                                            sigmaX: 3, sigmaY: 3),
+                                        child: Container(
+                                          // slightly smaller margin for centered layout
+                                          margin: EdgeInsets.symmetric(
+                                              horizontal: 8, vertical: 6),
+                                          child: InputBar(
+                                            key: _inputBarKey,
+                                            controller: controller,
+                                            onSend: _send,
+                                            onStop: () => context
+                                                .read<ChatBloc>()
+                                                .add(StopStreaming()),
+                                            isStreaming: state.isStreaming,
+                                          ),
                                         ),
-                                    isStreaming: state.isStreaming,
+                                      ),
+                                    ),
+                                    SizedBox(height: 12),
+                                    // Suggested prompts beneath the input bar (vertical list, full-width)
+                                    Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.stretch,
+                                      children: [
+                                        SizedBox(height: 6),
+                                        _SuggestionChip(
+                                          fullWidth: true,
+                                          icon: Icons.folder_open,
+                                          text:
+                                              'Analyze my file system and memorize its structure to assist me better later',
+                                          onTap: () {
+                                            controller.text =
+                                                'Analyze my file system and memorize its structure to assist me better later';
+                                            controller.selection =
+                                                TextSelection.fromPosition(
+                                                    TextPosition(
+                                                        offset: controller
+                                                            .text.length));
+                                            (_inputBarKey.currentState
+                                                    as dynamic)
+                                                ?.focusInput();
+                                          },
+                                        ),
+                                        SizedBox(height: 8),
+                                        _SuggestionChip(
+                                          fullWidth: true,
+                                          icon: Icons.person,
+                                          text:
+                                              'Ask me questions to get to know me better and keep them in your memory',
+                                          onTap: () {
+                                            controller.text =
+                                                'Ask me questions to get to know me better and keep them in your memory';
+                                            controller.selection =
+                                                TextSelection.fromPosition(
+                                                    TextPosition(
+                                                        offset: controller
+                                                            .text.length));
+                                            (_inputBarKey.currentState
+                                                    as dynamic)
+                                                ?.focusInput();
+                                          },
+                                        ),
+                                        SizedBox(height: 8),
+                                        _SuggestionChip(
+                                          fullWidth: true,
+                                          icon: Icons.desktop_windows,
+                                          text:
+                                              'Organize my desktop files into sectioned folders',
+                                          onTap: () {
+                                            controller.text =
+                                                'Organize my desktop files into sectioned folders';
+                                            controller.selection =
+                                                TextSelection.fromPosition(
+                                                    TextPosition(
+                                                        offset: controller
+                                                            .text.length));
+                                            (_inputBarKey.currentState
+                                                    as dynamic)
+                                                ?.focusInput();
+                                          },
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            )
+                          else
+                            Align(
+                              alignment: Alignment.bottomCenter,
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(12),
+                                child: BackdropFilter(
+                                  filter:
+                                      ImageFilter.blur(sigmaX: 3, sigmaY: 3),
+                                  child: Container(
+                                    margin: EdgeInsets.fromLTRB(16, 3, 16, 16),
+                                    child: InputBar(
+                                      key: _inputBarKey,
+                                      controller: controller,
+                                      onSend: _send,
+                                      onStop: () =>
+                                          context.read<ChatBloc>().add(
+                                                StopStreaming(),
+                                              ),
+                                      isStreaming: state.isStreaming,
+                                    ),
                                   ),
                                 ),
                               ),
                             ),
-                          ),
                         ],
                       ),
                     ),
