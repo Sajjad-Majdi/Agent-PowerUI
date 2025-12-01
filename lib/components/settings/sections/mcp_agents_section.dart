@@ -160,7 +160,7 @@ class _McpAgentsSectionState extends State<McpAgentsSection> {
                       TextField(
                         controller: serverNameController,
                         decoration: InputDecoration(
-                          labelText: 'Server name',
+                          labelText: 'Name for this agent',
                           hintText: 'e.g., web_browser',
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
@@ -188,7 +188,7 @@ class _McpAgentsSectionState extends State<McpAgentsSection> {
                       TextField(
                         controller: jsonConfigController,
                         decoration: InputDecoration(
-                          labelText: 'Server configuration (JSON)',
+                          labelText: 'Configuration for the MCP server (JSON)',
                           hintText:
                               '{\n  "command": "npx",\n  "args": ["@playwright/mcp@latest"],\n  "transport": "stdio"\n}',
                           border: OutlineInputBorder(
@@ -1257,7 +1257,7 @@ class _McpAgentsSectionState extends State<McpAgentsSection> {
           ),
           const SizedBox(height: 8),
           Text(
-            'Manage your subagents. Add new MCP server configurations or modify existing ones. Each sub-agent is automatically created with its tools and made available to the main agent.',
+            'Model Context Protocol (MCP) connects your AI to external tools and data. You can extend the main agent\'s capabilities by adding sub-agents. simply provide the MCP server configuration (JSON) for any compatible toolset.',
             style: theme.textTheme.bodySmall?.copyWith(
               color: theme.colorScheme.onSurfaceVariant,
             ),

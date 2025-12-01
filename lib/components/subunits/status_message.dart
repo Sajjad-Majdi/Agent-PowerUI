@@ -106,8 +106,12 @@ class _StatusMessageState extends State<StatusMessage> {
           ),
         ),
         child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(icon, size: 18, color: iconColor),
+            Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Icon(icon, size: 18, color: iconColor),
+            ),
             SizedBox(width: 10),
             Expanded(
               child: Text(
@@ -120,12 +124,15 @@ class _StatusMessageState extends State<StatusMessage> {
               ),
             ),
             if (widget.onDismiss != null)
-              IconButton(
-                icon: Icon(Iconsax.close_square, size: 16),
-                color: textColor.withValues(alpha: 0.7),
-                padding: EdgeInsets.zero,
-                constraints: BoxConstraints(),
-                onPressed: _handleDismiss,
+              Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: IconButton(
+                  icon: Icon(Iconsax.close_square, size: 16),
+                  color: textColor.withValues(alpha: 0.7),
+                  padding: EdgeInsets.zero,
+                  constraints: BoxConstraints(),
+                  onPressed: _handleDismiss,
+                ),
               ),
           ],
         ),

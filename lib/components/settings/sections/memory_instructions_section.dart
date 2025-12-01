@@ -18,6 +18,7 @@ class _MemoryInstructionsSectionState extends State<MemoryInstructionsSection> {
   bool _isLoading = true;
   bool _isSaving = false;
   final Set<String> _collapsedCategories = <String>{};
+  final Set<String> _expandedMemoryRecords = <String>{};
   String? _statusMessage;
   StatusType? _statusType;
 
@@ -155,7 +156,7 @@ class _MemoryInstructionsSectionState extends State<MemoryInstructionsSection> {
                   size: 20, color: theme.colorScheme.primary),
               SizedBox(width: 10),
               Text(
-                'Agent Instructions',
+                'System Instructions',
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
@@ -167,7 +168,7 @@ class _MemoryInstructionsSectionState extends State<MemoryInstructionsSection> {
           ),
           SizedBox(height: 8),
           Text(
-            'Custom instructions for the agent behavior',
+            'Define how the AI should behave, its personality, and any specific rules it should follow.',
             style: TextStyle(
               fontSize: 14,
               color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
@@ -186,7 +187,8 @@ class _MemoryInstructionsSectionState extends State<MemoryInstructionsSection> {
               controller: _instructionsController,
               maxLines: 6,
               decoration: InputDecoration(
-                hintText: 'Enter custom instructions for the agent...',
+                hintText:
+                    'e.g., You are a helpful assistant. Always check your work...',
                 hintStyle: TextStyle(fontSize: 14),
                 border: InputBorder.none,
                 contentPadding: EdgeInsets.all(16),
@@ -239,7 +241,7 @@ class _MemoryInstructionsSectionState extends State<MemoryInstructionsSection> {
                   size: 20, color: theme.colorScheme.primary),
               SizedBox(width: 10),
               Text(
-                'Agent Memory',
+                'Long-term Memory',
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
@@ -250,6 +252,14 @@ class _MemoryInstructionsSectionState extends State<MemoryInstructionsSection> {
             ],
           ),
           SizedBox(height: 8),
+          Text(
+            'Information the agent has learned about you over time. You can delete specific memories here.',
+            style: TextStyle(
+              fontSize: 14,
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+            ),
+          ),
+          SizedBox(height: 4),
           Text(
             '${_memory.length} categories stored',
             style: TextStyle(
@@ -385,92 +395,183 @@ class _MemoryInstructionsSectionState extends State<MemoryInstructionsSection> {
                               final timestamp = fact['timestamp'] ?? '';
                               final factId = fact['id'] ?? 0;
                               final formattedTime = _formatTimestamp(timestamp);
-                              return ListTile(
-                                dense: true,
-                                contentPadding: EdgeInsets.symmetric(
-                                    horizontal: 14, vertical: 6),
-                                title: Text(
-                                  factText,
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    height: 1.35,
-                                    fontWeight: FontWeight.w600,
-                                    fontFamily: 'Nunito',
-                                    color: theme.colorScheme.onSurface,
-                                  ),
-                                ),
-                                subtitle: Padding(
-                                  padding: const EdgeInsets.only(top: 4.0),
-                                  child: Text(
-                                    formattedTime,
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      fontFamily: 'FiraCode',
-                                      color: theme.colorScheme.onSurface
-                                          .withValues(alpha: 0.6),
-                                    ),
-                                  ),
-                                ),
-                                trailing: IconButton(
-                                  onPressed: () async {
-                                    final confirm = await showDialog<bool>(
-                                      context: context,
-                                      builder: (context) => AlertDialog(
-                                        backgroundColor:
-                                            AppTheme.colors.messageBubbleColor,
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius:
-                                              BorderRadius.circular(20),
-                                          side: BorderSide(
-                                            color: AppTheme.colors.primaryColor
-                                                .withValues(alpha: 0.3),
-                                            width: 1.5,
-                                          ),
-                                        ),
-                                        title: const Text(
-                                          'Delete Memory',
-                                          style: TextStyle(
-                                            fontWeight: FontWeight.w700,
-                                            fontFamily: 'Nunito',
-                                          ),
-                                        ),
-                                        content: const Text(
-                                            'Are you sure you want to delete this memory?'),
-                                        actions: [
-                                          TextButton(
-                                            onPressed: () =>
-                                                Navigator.pop(context, false),
-                                            style: TextButton.styleFrom(
-                                              foregroundColor: Colors.white70,
+                              final recordKey = '${categoryName}_$factId';
+                              final lineCount =
+                                  '\n'.allMatches(factText).length + 1;
+                              final shouldCollapse = lineCount > 3;
+                              final isExpanded =
+                                  _expandedMemoryRecords.contains(recordKey);
+                              final isCollapsed = shouldCollapse && !isExpanded;
+
+                              return Column(
+                                children: [
+                                  InkWell(
+                                    onTap: shouldCollapse
+                                        ? () {
+                                            setState(() {
+                                              if (isExpanded) {
+                                                _expandedMemoryRecords
+                                                    .remove(recordKey);
+                                              } else {
+                                                _expandedMemoryRecords
+                                                    .add(recordKey);
+                                              }
+                                            });
+                                          }
+                                        : null,
+                                    child: Padding(
+                                      padding: EdgeInsets.symmetric(
+                                          horizontal: 14, vertical: 6),
+                                      child: Row(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          if (shouldCollapse) ...[
+                                            AnimatedRotation(
+                                              turns: isCollapsed ? -0.25 : 0.0,
+                                              duration:
+                                                  Duration(milliseconds: 150),
+                                              child: Icon(Iconsax.arrow_down_1,
+                                                  size: 14,
+                                                  color: theme
+                                                      .colorScheme.onSurface
+                                                      .withValues(alpha: 0.6)),
                                             ),
-                                            child: const Text('Cancel'),
-                                          ),
-                                          FilledButton(
-                                            onPressed: () =>
-                                                Navigator.pop(context, true),
-                                            style: FilledButton.styleFrom(
-                                              backgroundColor: Colors.red,
-                                              foregroundColor: Colors.white,
-                                              shape: RoundedRectangleBorder(
-                                                borderRadius:
-                                                    BorderRadius.circular(10),
-                                              ),
+                                            SizedBox(width: 8),
+                                          ],
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  isCollapsed && shouldCollapse
+                                                      ? factText
+                                                              .split('\n')
+                                                              .take(2)
+                                                              .join('\n') +
+                                                          (lineCount > 2
+                                                              ? '\n...'
+                                                              : '')
+                                                      : factText,
+                                                  style: TextStyle(
+                                                    fontSize: 14,
+                                                    height: 1.35,
+                                                    fontWeight: FontWeight.w600,
+                                                    fontFamily: 'Nunito',
+                                                    color: theme
+                                                        .colorScheme.onSurface,
+                                                  ),
+                                                ),
+                                                SizedBox(height: 4),
+                                                Text(
+                                                  formattedTime,
+                                                  style: TextStyle(
+                                                    fontSize: 11,
+                                                    fontFamily: 'FiraCode',
+                                                    color: theme
+                                                        .colorScheme.onSurface
+                                                        .withValues(alpha: 0.6),
+                                                  ),
+                                                ),
+                                              ],
                                             ),
-                                            child: const Text('Delete'),
+                                          ),
+                                          SizedBox(width: 8),
+                                          IconButton(
+                                            onPressed: () async {
+                                              final confirm =
+                                                  await showDialog<bool>(
+                                                context: context,
+                                                builder: (context) =>
+                                                    AlertDialog(
+                                                  backgroundColor: AppTheme
+                                                      .colors
+                                                      .messageBubbleColor,
+                                                  shape: RoundedRectangleBorder(
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                            20),
+                                                    side: BorderSide(
+                                                      color: AppTheme
+                                                          .colors.primaryColor
+                                                          .withValues(
+                                                              alpha: 0.3),
+                                                      width: 1.5,
+                                                    ),
+                                                  ),
+                                                  title: const Text(
+                                                    'Delete Memory',
+                                                    style: TextStyle(
+                                                      fontWeight:
+                                                          FontWeight.w700,
+                                                      fontFamily: 'Nunito',
+                                                    ),
+                                                  ),
+                                                  content: const Text(
+                                                      'Are you sure you want to delete this memory?'),
+                                                  actions: [
+                                                    TextButton(
+                                                      onPressed: () =>
+                                                          Navigator.pop(
+                                                              context, false),
+                                                      style:
+                                                          TextButton.styleFrom(
+                                                        foregroundColor:
+                                                            Colors.white70,
+                                                      ),
+                                                      child:
+                                                          const Text('Cancel'),
+                                                    ),
+                                                    FilledButton(
+                                                      onPressed: () =>
+                                                          Navigator.pop(
+                                                              context, true),
+                                                      style: FilledButton
+                                                          .styleFrom(
+                                                        backgroundColor:
+                                                            Colors.red,
+                                                        foregroundColor:
+                                                            Colors.white,
+                                                        shape:
+                                                            RoundedRectangleBorder(
+                                                          borderRadius:
+                                                              BorderRadius
+                                                                  .circular(10),
+                                                        ),
+                                                      ),
+                                                      child:
+                                                          const Text('Delete'),
+                                                    ),
+                                                  ],
+                                                ),
+                                              );
+                                              if (confirm == true) {
+                                                _deleteFact(
+                                                    categoryName, factId);
+                                              }
+                                            },
+                                            icon: Icon(Iconsax.trash, size: 16),
+                                            color: Colors.red
+                                                .withValues(alpha: 0.7),
+                                            padding: EdgeInsets.all(6),
+                                            constraints: BoxConstraints(),
+                                            tooltip: 'Delete',
                                           ),
                                         ],
                                       ),
-                                    );
-                                    if (confirm == true) {
-                                      _deleteFact(categoryName, factId);
-                                    }
-                                  },
-                                  icon: Icon(Iconsax.trash, size: 16),
-                                  color: Colors.red.withValues(alpha: 0.7),
-                                  padding: EdgeInsets.all(6),
-                                  constraints: BoxConstraints(),
-                                  tooltip: 'Delete',
-                                ),
+                                    ),
+                                  ),
+                                  if (shouldCollapse &&
+                                      !isCollapsed &&
+                                      i < facts.length - 1) ...[
+                                    Divider(
+                                      height: 1,
+                                      color: theme.colorScheme.outline
+                                          .withValues(alpha: 0.08),
+                                    ),
+                                  ],
+                                ],
                               );
                             },
                           ),

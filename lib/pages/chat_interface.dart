@@ -12,6 +12,7 @@ import '/components/app_bar.dart';
 import '/components/input_bar.dart';
 import '/components/massage_bubble.dart';
 import '/components/sidebar.dart';
+import '/components/subunits/status_message.dart';
 import '/theme.dart';
 import '/services/api_service.dart';
 
@@ -52,11 +53,11 @@ class _SuggestionChip extends StatelessWidget {
           ),
         ),
         child: Row(
-          mainAxisSize: MainAxisSize.max,
+          mainAxisSize: MainAxisSize.min,
           children: [
             Icon(icon, size: 16, color: theme.colorScheme.onSurface),
             SizedBox(width: 10),
-            Expanded(
+            Flexible(
               child: Text(
                 text,
                 style: TextStyle(
@@ -94,6 +95,18 @@ class _ChatInterfaceState extends State<ChatInterface> {
   bool _localBusy = false;
   late final VoidCallback _privacyModeListener;
 
+  // Status message state
+  String? _statusMessage;
+  StatusType _statusType = StatusType.info;
+
+  void _showStatus(String message, {StatusType type = StatusType.info}) {
+    if (!mounted) return;
+    setState(() {
+      _statusMessage = message;
+      _statusType = type;
+    });
+  }
+
   @override
   void initState() {
     super.initState();
@@ -125,16 +138,12 @@ class _ChatInterfaceState extends State<ChatInterface> {
     final prompt = controller.text.trim();
     if (prompt.isEmpty) return;
     if (_privacyMode && !_localStatus.running) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Local model is not ready yet.')),
-      );
+      _showStatus('Local model is not ready yet.', type: StatusType.warning);
       return;
     }
     if (_localBusy) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text('Please wait for the local model to be ready.')),
-      );
+      _showStatus('Please wait for the local model to be ready.',
+          type: StatusType.warning);
       return;
     }
     final bloc = context.read<ChatBloc>();
@@ -177,9 +186,7 @@ class _ChatInterfaceState extends State<ChatInterface> {
       setState(() => _activeGeminiModel = newModel);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to switch model: $e')),
-      );
+      _showStatus('Failed to switch model: $e', type: StatusType.error);
     }
   }
 
@@ -202,9 +209,7 @@ class _ChatInterfaceState extends State<ChatInterface> {
       });
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to load local models: $e')),
-      );
+      _showStatus('Failed to load local models: $e', type: StatusType.error);
     }
   }
 
@@ -224,9 +229,7 @@ class _ChatInterfaceState extends State<ChatInterface> {
       return true;
     } catch (e) {
       if (!mounted) return false;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to start local model: $e')),
-      );
+      _showStatus('Failed to start local model: $e', type: StatusType.error);
       return false;
     } finally {
       if (mounted) {
@@ -248,9 +251,7 @@ class _ChatInterfaceState extends State<ChatInterface> {
       return true;
     } catch (e) {
       if (!mounted) return false;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to stop local model: $e')),
-      );
+      _showStatus('Failed to stop local model: $e', type: StatusType.error);
       return false;
     } finally {
       if (mounted) {
@@ -378,12 +379,8 @@ class _ChatInterfaceState extends State<ChatInterface> {
                           (_sidebarKey.currentState as dynamic)?.refresh();
                         }
                         if (state is ChatError) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text('Error: ${state.error}'),
-                              backgroundColor: Colors.red,
-                            ),
-                          );
+                          _showStatus('Error: ${state.error}',
+                              type: StatusType.error);
                         }
                       },
                       child: Stack(
@@ -409,134 +406,162 @@ class _ChatInterfaceState extends State<ChatInterface> {
                               ),
                             ),
                           ),
-                          // If there are no messages in the current session, show
-                          // the input bar centered vertically with suggested prompts
-                          if (state.messages.isEmpty)
-                            Center(
-                              child: Padding(
-                                // increased top margin so input appears lower on screen
-                                padding: const EdgeInsets.fromLTRB(
-                                    16.0, 120.0, 16.0, 40.0),
-                                child: Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    SizedBox(
-                                      height: 40,
-                                    ),
-                                    ClipRRect(
-                                      borderRadius: BorderRadius.circular(12),
-                                      child: BackdropFilter(
-                                        filter: ImageFilter.blur(
-                                            sigmaX: 3, sigmaY: 3),
-                                        child: Container(
-                                          // slightly smaller margin for centered layout
-                                          margin: EdgeInsets.symmetric(
-                                              horizontal: 8, vertical: 6),
-                                          child: InputBar(
-                                            key: _inputBarKey,
-                                            controller: controller,
-                                            onSend: _send,
-                                            onStop: () => context
-                                                .read<ChatBloc>()
-                                                .add(StopStreaming()),
-                                            isStreaming: state.isStreaming,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                    SizedBox(height: 12),
-                                    // Suggested prompts beneath the input bar (vertical list, full-width)
-                                    Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.stretch,
+                          if (_statusMessage != null)
+                            Positioned(
+                              top: 110,
+                              left: 16,
+                              right: 16,
+                              child: StatusMessage(
+                                key: ValueKey(_statusMessage),
+                                message: _statusMessage!,
+                                type: _statusType,
+                                autoDismissDuration:
+                                    _statusType == StatusType.error
+                                        ? null
+                                        : const Duration(seconds: 4),
+                                onDismiss: () =>
+                                    setState(() => _statusMessage = null),
+                              ),
+                            ),
+                          // Suggestions Area
+                          Positioned.fill(
+                            child: AnimatedOpacity(
+                              duration: const Duration(milliseconds: 300),
+                              opacity: state.messages.isEmpty ? 1.0 : 0.0,
+                              child: IgnorePointer(
+                                ignoring: !state.messages.isEmpty,
+                                child: Center(
+                                  child: Padding(
+                                    // increased top margin so input appears lower on screen
+                                    padding: const EdgeInsets.fromLTRB(
+                                        16.0, 120.0, 16.0, 40.0),
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
                                       children: [
-                                        SizedBox(height: 6),
-                                        _SuggestionChip(
-                                          fullWidth: true,
-                                          icon: Icons.folder_open,
-                                          text:
-                                              'Analyze my file system and memorize its structure to assist me better later',
-                                          onTap: () {
-                                            controller.text =
-                                                'Analyze my file system and memorize its structure to assist me better later';
-                                            controller.selection =
-                                                TextSelection.fromPosition(
-                                                    TextPosition(
-                                                        offset: controller
-                                                            .text.length));
-                                            (_inputBarKey.currentState
-                                                    as dynamic)
-                                                ?.focusInput();
-                                          },
+                                        // Placeholder space to push suggestions below the centered input bar
+                                        const SizedBox(
+                                          height: 130,
                                         ),
-                                        SizedBox(height: 8),
-                                        _SuggestionChip(
-                                          fullWidth: true,
-                                          icon: Icons.person,
-                                          text:
-                                              'Ask me questions to get to know me better and keep them in your memory',
-                                          onTap: () {
-                                            controller.text =
-                                                'Ask me questions to get to know me better and keep them in your memory';
-                                            controller.selection =
-                                                TextSelection.fromPosition(
-                                                    TextPosition(
-                                                        offset: controller
-                                                            .text.length));
-                                            (_inputBarKey.currentState
-                                                    as dynamic)
-                                                ?.focusInput();
-                                          },
-                                        ),
-                                        SizedBox(height: 8),
-                                        _SuggestionChip(
-                                          fullWidth: true,
-                                          icon: Icons.desktop_windows,
-                                          text:
-                                              'Organize my desktop files into sectioned folders',
-                                          onTap: () {
-                                            controller.text =
-                                                'Organize my desktop files into sectioned folders';
-                                            controller.selection =
-                                                TextSelection.fromPosition(
-                                                    TextPosition(
-                                                        offset: controller
-                                                            .text.length));
-                                            (_inputBarKey.currentState
-                                                    as dynamic)
-                                                ?.focusInput();
-                                          },
+                                        const SizedBox(height: 12),
+                                        // Suggested prompts beneath the input bar (horizontal list, wrapped)
+                                        Wrap(
+                                          spacing: 8,
+                                          runSpacing: 8,
+                                          alignment: WrapAlignment.center,
+                                          children: [
+                                            _SuggestionChip(
+                                              icon: Icons.folder_open,
+                                              text:
+                                                  'Analyze my file system and memorize its structure to assist me better later',
+                                              onTap: () {
+                                                controller.text =
+                                                    'Analyze my file system and memorize its structure to assist me better later';
+                                                controller.selection =
+                                                    TextSelection.fromPosition(
+                                                        TextPosition(
+                                                            offset: controller
+                                                                .text.length));
+                                                (_inputBarKey.currentState
+                                                        as dynamic)
+                                                    ?.focusInput();
+                                              },
+                                            ),
+                                            _SuggestionChip(
+                                              icon: Icons.person,
+                                              text:
+                                                  'Ask me questions to get to know me better and keep them in your memory',
+                                              onTap: () {
+                                                controller.text =
+                                                    'Ask me questions to get to know me better and keep them in your memory';
+                                                controller.selection =
+                                                    TextSelection.fromPosition(
+                                                        TextPosition(
+                                                            offset: controller
+                                                                .text.length));
+                                                (_inputBarKey.currentState
+                                                        as dynamic)
+                                                    ?.focusInput();
+                                              },
+                                            ),
+                                            _SuggestionChip(
+                                              icon: Icons.desktop_windows,
+                                              text:
+                                                  'Organize my desktop files into sectioned folders',
+                                              onTap: () {
+                                                controller.text =
+                                                    'Organize my desktop files into sectioned folders';
+                                                controller.selection =
+                                                    TextSelection.fromPosition(
+                                                        TextPosition(
+                                                            offset: controller
+                                                                .text.length));
+                                                (_inputBarKey.currentState
+                                                        as dynamic)
+                                                    ?.focusInput();
+                                              },
+                                            ),
+                                          ],
                                         ),
                                       ],
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            )
-                          else
-                            Align(
-                              alignment: Alignment.bottomCenter,
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(12),
-                                child: BackdropFilter(
-                                  filter:
-                                      ImageFilter.blur(sigmaX: 3, sigmaY: 3),
-                                  child: Container(
-                                    margin: EdgeInsets.fromLTRB(16, 3, 16, 16),
-                                    child: InputBar(
-                                      key: _inputBarKey,
-                                      controller: controller,
-                                      onSend: _send,
-                                      onStop: () =>
-                                          context.read<ChatBloc>().add(
-                                                StopStreaming(),
-                                              ),
-                                      isStreaming: state.isStreaming,
                                     ),
                                   ),
                                 ),
                               ),
                             ),
+                          ),
+                          // Animated Input Bar
+                          AnimatedAlign(
+                            duration: const Duration(milliseconds: 600),
+                            curve: Curves.fastOutSlowIn,
+                            alignment: state.messages.isEmpty
+                                ? Alignment.center
+                                : Alignment.bottomCenter,
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 600),
+                              curve: Curves.fastOutSlowIn,
+                              width: state.messages.isEmpty
+                                  ? (screenWidth > 848
+                                      ? 800
+                                      : (screenWidth > 48
+                                          ? screenWidth - 48
+                                          : screenWidth))
+                                  : screenWidth,
+                              margin: state.messages.isEmpty
+                                  ? const EdgeInsets.only(
+                                      left: 24, right: 24, bottom: 120, top: 60)
+                                  : EdgeInsets.zero,
+                              decoration: BoxDecoration(
+                                color: Colors.transparent,
+                                borderRadius: state.messages.isEmpty
+                                    ? BorderRadius.circular(12)
+                                    : const BorderRadius.vertical(
+                                        top: Radius.circular(0)),
+                              ),
+                              clipBehavior: Clip.hardEdge,
+                              child: BackdropFilter(
+                                filter:
+                                    ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                                child: AnimatedContainer(
+                                  duration: const Duration(milliseconds: 600),
+                                  curve: Curves.fastOutSlowIn,
+                                  padding: state.messages.isEmpty
+                                      ? const EdgeInsets.symmetric(
+                                          horizontal: 8, vertical: 6)
+                                      : const EdgeInsets.fromLTRB(
+                                          16, 0, 16, 16),
+                                  child: InputBar(
+                                    key: _inputBarKey,
+                                    controller: controller,
+                                    onSend: _send,
+                                    onStop: () => context
+                                        .read<ChatBloc>()
+                                        .add(StopStreaming()),
+                                    isStreaming: state.isStreaming,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
                         ],
                       ),
                     ),

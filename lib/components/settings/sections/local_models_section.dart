@@ -352,7 +352,7 @@ class _LocalModelsSectionState extends State<LocalModelsSection> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Drop .gguf files here',
+                      'Import New Models',
                       style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
@@ -362,7 +362,7 @@ class _LocalModelsSectionState extends State<LocalModelsSection> {
                     ),
                     SizedBox(height: 2),
                     Text(
-                      'Files will be copied into your models folder',
+                      'Drag & drop .gguf files here to add to your library',
                       style: TextStyle(
                         fontSize: 12,
                         color:
@@ -448,7 +448,7 @@ class _LocalModelsSectionState extends State<LocalModelsSection> {
           ),
           SizedBox(height: 6),
           Text(
-            'Manage your offline models (.gguf)',
+            'Run AI models locally on your device without an internet connection.',
             style: TextStyle(
               fontSize: 13,
               color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
@@ -572,7 +572,7 @@ class _LocalModelsSectionState extends State<LocalModelsSection> {
 
           // Resource Paths Section
           Text(
-            'Resource Paths',
+            'System Paths Configuration',
             style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.w600,
@@ -580,12 +580,20 @@ class _LocalModelsSectionState extends State<LocalModelsSection> {
               color: theme.colorScheme.onSurface,
             ),
           ),
+          SizedBox(height: 4),
+          Text(
+            'Configure where your models are located.',
+            style: TextStyle(
+              fontSize: 13,
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+            ),
+          ),
           SizedBox(height: 12),
           Row(
             children: [
               Expanded(
                 child: _buildCompactPathField(
-                  label: 'Models Folder',
+                  label: 'Models Directory',
                   controller: _modelsPathController,
                   icon: Iconsax.folder,
                   onBrowse: _pickModelsFolder,
@@ -594,7 +602,7 @@ class _LocalModelsSectionState extends State<LocalModelsSection> {
               SizedBox(width: 12),
               Expanded(
                 child: _buildCompactPathField(
-                  label: 'llama.cpp Binary',
+                  label: 'Llama Server Executable',
                   controller: _llamaPathController,
                   icon: Iconsax.cpu,
                   onBrowse: _pickLlamaBinary,

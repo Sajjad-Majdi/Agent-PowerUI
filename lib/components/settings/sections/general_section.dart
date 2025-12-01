@@ -157,6 +157,14 @@ class _GeneralSectionState extends State<GeneralSection> {
                 ),
             ],
           ),
+          SizedBox(height: 8),
+          Text(
+            'The API key is required to communicate with Google\'s Gemini AI. You can get one from Google AI Studio.',
+            style: TextStyle(
+              fontSize: 14,
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+            ),
+          ),
           if (_hasKey) ...[
             SizedBox(height: 8),
             Text(
@@ -173,7 +181,7 @@ class _GeneralSectionState extends State<GeneralSection> {
             controller: _apiKeyController,
             obscureText: !_showApiKey,
             decoration: InputDecoration(
-              hintText: 'Enter your Gemini API key',
+              hintText: 'Paste your Gemini API key here',
               hintStyle: TextStyle(fontSize: 13),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(8),
