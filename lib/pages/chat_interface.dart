@@ -86,6 +86,7 @@ class _ChatInterfaceState extends State<ChatInterface> {
   LocalAgentStatus _localStatus = const LocalAgentStatus(running: false);
   bool _privacyMode = AppTheme.isPrivacyMode;
   bool _localBusy = false;
+  bool _localStopping = false;
   late final VoidCallback _privacyModeListener;
 
   // Status message state
@@ -233,7 +234,10 @@ class _ChatInterfaceState extends State<ChatInterface> {
 
   Future<bool> _stopLocalModel() async {
     if (_localBusy) return false;
-    setState(() => _localBusy = true);
+    setState(() {
+      _localBusy = true;
+      _localStopping = true;
+    });
     try {
       await ApiService.stopLocalModel();
       final status = await ApiService.getLocalAgentStatus();
@@ -248,7 +252,10 @@ class _ChatInterfaceState extends State<ChatInterface> {
       return false;
     } finally {
       if (mounted) {
-        setState(() => _localBusy = false);
+        setState(() {
+          _localBusy = false;
+          _localStopping = false;
+        });
       }
     }
   }
@@ -351,6 +358,7 @@ class _ChatInterfaceState extends State<ChatInterface> {
                         privacyMode: _privacyMode,
                         localRunning: _localStatus.running,
                         localBusy: _localBusy,
+                        localStopping: _localStopping,
                         onSelectGeminiModel: _selectGeminiModel,
                         onSelectLocalModel: _selectLocalModel,
                         onTogglePrivacyMode: _togglePrivacyMode,

@@ -9,9 +9,44 @@ import '/pages/chat_interface.dart';
 import '/services/api_service.dart';
 import '/theme.dart';
 
+Future<void> _startBackendEarly() async {
+  try {
+    // Check if server is already running
+    final healthStatus = await ApiService.healthCheck();
+    if (healthStatus['status'] == 'healthy') {
+      print('Backend server is already running on http://localhost:5000');
+      return;
+    }
+  } catch (e) {
+    // Server not running, proceed to start it
+  }
+
+  try {
+    final workingDir = Directory.current.path;
+    Process.start(
+      'python',
+      ['-u', 'backend/api.py'],
+      workingDirectory: workingDir,
+      runInShell: true,
+    ).then((process) {
+      process.stderr.transform(utf8.decoder).listen((data) {
+        print('Backend: $data');
+      });
+    });
+
+    await ApiService.ensureBackendReady(timeout: const Duration(seconds: 60));
+    print('Backend server started on http://localhost:5000');
+  } catch (e) {
+    print('Failed to start backend server: $e');
+  }
+}
+
 void main() async {
   // Ensure flutter bindings are initialized before doing anything else.
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Start backend server immediately (don't await - let it run in parallel)
+  _startBackendEarly();
 
   if (Platform.isWindows) {
     // Initialize the window manager.
@@ -38,62 +73,19 @@ class MainApp extends StatefulWidget {
 }
 
 class _MainAppState extends State<MainApp> with WindowListener {
-  Process? _backendProcess;
-
   @override
   void initState() {
     super.initState();
-    _startBackendServer();
     if (Platform.isWindows) {
       windowManager.addListener(this);
       windowManager.setPreventClose(true);
     }
   }
 
-  Future<void> _startBackendServer() async {
-    try {
-      // Check if server is already running
-      final healthStatus = await ApiService.healthCheck();
-      if (healthStatus['status'] == 'healthy') {
-        print('Backend server is already running on http://localhost:5000');
-        return;
-      }
-    } catch (e) {
-      // Server not running, proceed to start it
-    }
-
-    try {
-      final workingDir = Directory.current.path;
-      _backendProcess = await Process.start(
-        'python',
-        ['-u', 'backend/api.py'],
-        workingDirectory: workingDir,
-        runInShell: true,
-      );
-
-      _backendProcess!.stderr.transform(utf8.decoder).listen((data) {
-        print('Backend: $data');
-      });
-
-      await ApiService.ensureBackendReady(timeout: const Duration(seconds: 60));
-      print('Backend server started on http://localhost:5000');
-    } catch (e) {
-      print('Failed to start backend server: $e');
-    }
-  }
-
   Future<void> _terminateBackend() async {
     if (Platform.isWindows) {
-      final pid = _backendProcess?.pid;
-      if (pid != null) {
-        Process.runSync('taskkill', ['/PID', pid.toString(), '/T', '/F'],
-            runInShell: true);
-      } else {
-        Process.runSync('taskkill', ['/F', '/IM', 'python.exe'],
-            runInShell: true);
-      }
-    } else {
-      _backendProcess?.kill();
+      Process.runSync('taskkill', ['/F', '/IM', 'python.exe'],
+          runInShell: true);
     }
   }
 

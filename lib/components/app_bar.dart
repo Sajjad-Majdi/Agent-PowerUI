@@ -12,6 +12,7 @@ class StylishAppBar extends StatelessWidget {
   final bool privacyMode;
   final bool localRunning;
   final bool localBusy;
+  final bool localStopping;
   final ValueChanged<String>? onSelectGeminiModel;
   final ValueChanged<String>? onSelectLocalModel;
   final VoidCallback? onTogglePrivacyMode;
@@ -27,6 +28,7 @@ class StylishAppBar extends StatelessWidget {
     required this.privacyMode,
     required this.localRunning,
     required this.localBusy,
+    this.localStopping = false,
     this.onSelectGeminiModel,
     this.onSelectLocalModel,
     this.onTogglePrivacyMode,
@@ -85,6 +87,7 @@ class StylishAppBar extends StatelessWidget {
                 activeLocalModel: activeLocalModel,
                 privacyMode: privacyMode,
                 localBusy: localBusy,
+                localStopping: localStopping,
                 localRunning: localRunning,
                 onSelectGeminiModel: onSelectGeminiModel,
                 onSelectLocalModel: onSelectLocalModel,
@@ -116,6 +119,7 @@ class _AppBarTitle extends StatelessWidget {
   final String? activeLocalModel;
   final bool privacyMode;
   final bool localBusy;
+  final bool localStopping;
   final bool localRunning;
   final ValueChanged<String>? onSelectGeminiModel;
   final ValueChanged<String>? onSelectLocalModel;
@@ -129,6 +133,7 @@ class _AppBarTitle extends StatelessWidget {
     required this.activeLocalModel,
     required this.privacyMode,
     required this.localBusy,
+    required this.localStopping,
     required this.localRunning,
     this.onSelectGeminiModel,
     this.onSelectLocalModel,
@@ -153,6 +158,7 @@ class _AppBarTitle extends StatelessWidget {
           activeGeminiModel: activeGeminiModel,
           activeLocalModel: activeLocalModel,
           localBusy: localBusy,
+          localStopping: localStopping,
           localRunning: localRunning,
           onSelectGeminiModel: onSelectGeminiModel,
           onSelectLocalModel: onSelectLocalModel,
@@ -170,6 +176,7 @@ class ModelPicker extends StatelessWidget {
   final String? activeGeminiModel;
   final String? activeLocalModel;
   final bool localBusy;
+  final bool localStopping;
   final bool localRunning;
   final ValueChanged<String>? onSelectGeminiModel;
   final ValueChanged<String>? onSelectLocalModel;
@@ -183,6 +190,7 @@ class ModelPicker extends StatelessWidget {
     required this.activeGeminiModel,
     required this.activeLocalModel,
     required this.localBusy,
+    this.localStopping = false,
     required this.localRunning,
     this.onSelectGeminiModel,
     this.onSelectLocalModel,
@@ -193,7 +201,10 @@ class ModelPicker extends StatelessWidget {
   Widget build(BuildContext context) {
     if (privacyMode) {
       if (localBusy) {
-        return const _BusyIndicator(label: 'Preparing local model...');
+        final label = localStopping
+            ? 'Stopping model server...'
+            : 'Preparing local model...';
+        return _BusyIndicator(label: label);
       }
       if (localModels.isEmpty) {
         return const Text('No local models found');
@@ -261,7 +272,7 @@ class ModelPicker extends StatelessWidget {
     }
 
     if (geminiModels.isEmpty || onSelectGeminiModel == null) {
-      return const Text('Could not load models');
+      return const _BusyIndicator(label: 'Connecting to backend...');
     }
 
     return _PickerContainer(
