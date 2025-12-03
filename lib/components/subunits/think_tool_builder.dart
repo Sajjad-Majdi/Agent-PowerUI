@@ -51,33 +51,37 @@ class _ThinkToolBuilderState extends State<ThinkToolBuilder>
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 2),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Compact pill-shaped header
-          Material(
-            color: Colors.transparent,
-            child: InkWell(
-              onTap: () {
-                setState(() {
-                  _isExpanded = !_isExpanded;
-                });
-              },
-              borderRadius: BorderRadius.circular(20),
-              child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                decoration: BoxDecoration(
-                  color: primaryColor.withAlpha(18),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                    color: primaryColor.withAlpha(50),
-                    width: 1,
-                  ),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () {
+            setState(() {
+              _isExpanded = !_isExpanded;
+            });
+          },
+          borderRadius: BorderRadius.circular(_isExpanded ? 12 : 20),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            padding: EdgeInsets.symmetric(
+              horizontal: 12,
+              vertical: _isExpanded ? 10 : 8,
+            ),
+            decoration: BoxDecoration(
+              color: primaryColor.withAlpha(18),
+              borderRadius: BorderRadius.circular(_isExpanded ? 12 : 20),
+              border: Border.all(
+                color: primaryColor.withAlpha(50),
+                width: 1,
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Header row
+                Row(
+                  mainAxisSize:
+                      _isExpanded ? MainAxisSize.max : MainAxisSize.min,
                   children: [
                     // Animated thinking icon
                     isThinking
@@ -90,15 +94,28 @@ class _ThinkToolBuilderState extends State<ThinkToolBuilder>
                         : Icon(Icons.lightbulb_outline,
                             color: primaryColor, size: 16),
                     const SizedBox(width: 6),
-                    Text(
-                      isThinking ? 'Thinking...' : 'Thought Process',
-                      style: TextStyle(
-                        fontFamily: 'Nunito',
-                        fontWeight: FontWeight.w600,
-                        fontSize: 13,
-                        color: primaryColor,
+                    if (_isExpanded)
+                      Expanded(
+                        child: Text(
+                          isThinking ? 'Thinking...' : 'Thought Process',
+                          style: TextStyle(
+                            fontFamily: 'Nunito',
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13,
+                            color: primaryColor,
+                          ),
+                        ),
+                      )
+                    else
+                      Text(
+                        isThinking ? 'Thinking...' : 'Thought Process',
+                        style: TextStyle(
+                          fontFamily: 'Nunito',
+                          fontWeight: FontWeight.w600,
+                          fontSize: 13,
+                          color: primaryColor,
+                        ),
                       ),
-                    ),
                     const SizedBox(width: 4),
                     AnimatedRotation(
                       turns: _isExpanded ? 0.5 : 0,
@@ -111,65 +128,63 @@ class _ThinkToolBuilderState extends State<ThinkToolBuilder>
                     ),
                   ],
                 ),
-              ),
-            ),
-          ),
-          // Expandable content
-          AnimatedCrossFade(
-            firstChild: const SizedBox.shrink(),
-            secondChild: Container(
-              margin: const EdgeInsets.only(top: 8, left: 4),
-              constraints: const BoxConstraints(maxWidth: 500),
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: theme.colorScheme.surface.withAlpha(60),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: primaryColor.withAlpha(30),
-                  width: 1,
-                ),
-              ),
-              child: displayText.isEmpty && isThinking
-                  ? Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        SizedBox(
-                          width: 12,
-                          height: 12,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: primaryColor,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          'Generating thoughts...',
-                          style: TextStyle(
-                            fontFamily: 'Nunito',
-                            fontStyle: FontStyle.italic,
-                            fontSize: 12,
-                            color: primaryColor.withAlpha(180),
-                          ),
-                        ),
-                      ],
-                    )
-                  : Text(
-                      displayText,
-                      style: TextStyle(
-                        fontFamily: 'Nunito',
-                        fontSize: 13,
-                        height: 1.5,
-                        color:
-                            theme.textTheme.bodyMedium?.color?.withAlpha(200),
+                // Expandable content inside the same container
+                AnimatedCrossFade(
+                  firstChild: const SizedBox.shrink(),
+                  secondChild: Padding(
+                    padding: const EdgeInsets.only(top: 10),
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.surface.withAlpha(60),
+                        borderRadius: BorderRadius.circular(8),
                       ),
+                      child: displayText.isEmpty && isThinking
+                          ? Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                SizedBox(
+                                  width: 12,
+                                  height: 12,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: primaryColor,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'Generating thoughts...',
+                                  style: TextStyle(
+                                    fontFamily: 'Nunito',
+                                    fontStyle: FontStyle.italic,
+                                    fontSize: 12,
+                                    color: primaryColor.withAlpha(180),
+                                  ),
+                                ),
+                              ],
+                            )
+                          : Text(
+                              displayText,
+                              style: TextStyle(
+                                fontFamily: 'Nunito',
+                                fontSize: 13,
+                                height: 1.5,
+                                color: theme.textTheme.bodyMedium?.color
+                                    ?.withAlpha(200),
+                              ),
+                            ),
                     ),
+                  ),
+                  crossFadeState: _isExpanded
+                      ? CrossFadeState.showSecond
+                      : CrossFadeState.showFirst,
+                  duration: const Duration(milliseconds: 200),
+                ),
+              ],
             ),
-            crossFadeState: _isExpanded
-                ? CrossFadeState.showSecond
-                : CrossFadeState.showFirst,
-            duration: const Duration(milliseconds: 200),
           ),
-        ],
+        ),
       ),
     );
   }

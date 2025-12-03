@@ -27,20 +27,18 @@ class _SuggestionChip extends StatelessWidget {
   final String text;
   final IconData icon;
   final VoidCallback onTap;
-  final bool fullWidth;
 
-  const _SuggestionChip(
-      {Key? key,
-      required this.text,
-      required this.icon,
-      required this.onTap,
-      this.fullWidth = false})
-      : super(key: key);
+  const _SuggestionChip({
+    Key? key,
+    required this.text,
+    required this.icon,
+    required this.onTap,
+  }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final chip = InkWell(
+    return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(8),
       child: Container(
@@ -72,11 +70,6 @@ class _SuggestionChip extends StatelessWidget {
         ),
       ),
     );
-
-    if (fullWidth) {
-      return SizedBox(width: double.infinity, child: chip);
-    }
-    return chip;
   }
 }
 
