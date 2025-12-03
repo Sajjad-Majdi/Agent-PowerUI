@@ -78,11 +78,7 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
     } catch (e) {
       await _cancelSubscription();
       _activeMessages.removeWhere((m) => m.isLoading == true);
-      _activeMessages.add(ChatMessage(
-        text: 'Error: ${e.toString()}',
-        isMe: false,
-      ));
-      emit(ChatLoaded(_activeMessages, sessionId));
+      emit(ChatError(_activeMessages, sessionId, 'Error: ${e.toString()}'));
     }
   }
 
@@ -194,16 +190,16 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
       final toolData = chunk['content'] as Map<String, dynamic>;
       final incomingName = toolData['name'] ?? 'Unknown Tool';
       final incomingArgs = Map<String, dynamic>.from(toolData['args'] ?? {});
-      
+
       // Check if we have a pending tool call with the same name that is in progress
       // We prioritize the most recent pending tool call of the same name
       String? existingPendingId;
-      
+
       // Iterate in reverse to find the most recently added pending tool call
       for (final id in _pendingToolCallIds.reversed) {
         final state = _toolCallStates[id];
-        if (state != null && 
-            state.status == 'in_progress' && 
+        if (state != null &&
+            state.status == 'in_progress' &&
             state.toolName == incomingName) {
           existingPendingId = id;
           break;
@@ -219,11 +215,11 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
           status: 'in_progress',
           steps: currentState.steps,
         );
-        
+
         // Update message text to trigger rebuild if needed
         if (_toolMessageIndex != null) {
-           _activeMessages[_toolMessageIndex!].toolCallStates =
-            Map.from(_toolCallStates);
+          _activeMessages[_toolMessageIndex!].toolCallStates =
+              Map.from(_toolCallStates);
         }
       } else {
         // Create new tool call entry
@@ -444,7 +440,8 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
     _activeMessages.removeWhere((m) => m.isLoading == true);
     if (messageText != null &&
         messageText.isNotEmpty &&
-        status != ChatLoadedStatus.cancelled) {
+        status != ChatLoadedStatus.cancelled &&
+        status != ChatLoadedStatus.error) {
       _activeMessages.add(ChatMessage(text: messageText, isMe: false));
     }
 

@@ -187,35 +187,71 @@ def chat():
             current_thread = threading.current_thread()
             setattr(current_thread, 'session_id', session_id)
             setattr(current_thread, 'cancel_event', cancel_event)
-            try:
-                agent_iter = online_agent.send_message(
-                    message, session_id, cancel_event=cancel_event)
+            max_retries = 3
+            retry_count = 0
+            user_message_sent = False  # Only send user_message once across retries
 
-                for last_message in agent_iter:
-                    if cancel_event.is_set():
-                        response_queue.put({'type': 'cancelled'})
+            try:
+                while retry_count < max_retries:
+                    try:
+                        has_ai_response = False
+                        agent_iter = online_agent.send_message(
+                            message, session_id, cancel_event=cancel_event)
+
+                        for last_message in agent_iter:
+                            if cancel_event.is_set():
+                                response_queue.put({'type': 'cancelled'})
+                                return
+
+                            # Stream tool calls immediately
+                            if hasattr(last_message, 'tool_calls') and last_message.tool_calls:
+                                for tool_call in last_message.tool_calls:
+                                    response_queue.put({'type': 'tool_call', 'content': {
+                                        'name': tool_call['name'], 'args': tool_call['args']}})
+
+                            # Stream content immediately
+                            if hasattr(last_message, 'content') and last_message.content:
+                                if last_message.type == "human":
+                                    # Only send user_message once (not on retries)
+                                    if not user_message_sent:
+                                        response_queue.put(
+                                            {'type': 'user_message', 'content': last_message.content})
+                                        user_message_sent = True
+                                elif last_message.type == "ai":
+                                    has_ai_response = True
+                                    response_queue.put(
+                                        {'type': 'ai_message', 'content': last_message.content})
+                                else:
+                                    response_queue.put(
+                                        {'type': 'tool_message', 'content': normalize_tool_output(last_message.content)})
+
+                        # Check if we got a valid response
+                        if has_ai_response:
+                            response_queue.put({'type': 'complete'})
+                            return  # Success, exit retry loop
+
+                        # Empty response - retry
+                        retry_count += 1
+                        print(
+                            f"[agent_worker] Empty response from model, retry {retry_count}/{max_retries}")
+                        if retry_count < max_retries:
+                            import time
+                            time.sleep(0.5)
+                            continue
+                        else:
+                            response_queue.put(
+                                {'type': 'error', 'content': 'Model returned empty response. Please try again.'})
+                            return
+
+                    except Exception as e:
+                        import traceback
+                        print(f"[agent_worker] Error: {e}")
+                        traceback.print_exc()
+                        response_queue.put(
+                            {'type': 'error', 'content': str(e)})
                         return
 
-                    if hasattr(last_message, 'tool_calls') and last_message.tool_calls:
-                        for tool_call in last_message.tool_calls:
-                            response_queue.put({'type': 'tool_call', 'content': {
-                                               'name': tool_call['name'], 'args': tool_call['args']}})
-                    if hasattr(last_message, 'content') and last_message.content:
-                        if last_message.type == "human":
-                            response_queue.put(
-                                {'type': 'user_message', 'content': last_message.content})
-                        elif last_message.type == "ai":
-                            response_queue.put(
-                                {'type': 'ai_message', 'content': last_message.content})
-                        else:
-                            normalized = normalize_tool_output(
-                                last_message.content)
-                            response_queue.put(
-                                {'type': 'tool_message', 'content': normalized})
-
                 response_queue.put({'type': 'complete'})
-            except Exception as e:
-                response_queue.put({'type': 'error', 'content': str(e)})
             finally:
                 agent_finished.set()
                 # Clean up thread-local attributes

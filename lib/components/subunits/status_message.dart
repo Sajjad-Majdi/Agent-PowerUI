@@ -15,7 +15,7 @@ class StatusMessage extends StatefulWidget {
     required this.message,
     this.type = StatusType.info,
     this.onDismiss,
-    this.autoDismissDuration = const Duration(seconds: 4),
+    this.autoDismissDuration = const Duration(seconds: 3),
   }) : super(key: key);
 
   @override
@@ -67,27 +67,27 @@ class _StatusMessageState extends State<StatusMessage> {
 
     switch (widget.type) {
       case StatusType.success:
-        backgroundColor = Colors.green.withValues(alpha: 0.15);
-        textColor = Colors.green.shade700;
-        iconColor = Colors.green;
+        backgroundColor = Colors.green.withValues(alpha: 0.85);
+        textColor = Colors.white;
+        iconColor = Colors.white;
         icon = Iconsax.tick_circle;
         break;
       case StatusType.error:
-        backgroundColor = Colors.red.withValues(alpha: 0.15);
-        textColor = Colors.red.shade700;
-        iconColor = Colors.red;
+        backgroundColor = Colors.red.withValues(alpha: 0.85);
+        textColor = Colors.white;
+        iconColor = Colors.white;
         icon = Iconsax.close_circle;
         break;
       case StatusType.warning:
-        backgroundColor = Colors.orange.withValues(alpha: 0.15);
-        textColor = Colors.orange.shade700;
-        iconColor = Colors.orange;
+        backgroundColor = Colors.orange.withValues(alpha: 0.85);
+        textColor = Colors.white;
+        iconColor = Colors.white;
         icon = Iconsax.warning_2;
         break;
       case StatusType.info:
-        backgroundColor = theme.colorScheme.primary.withValues(alpha: 0.15);
-        textColor = theme.colorScheme.primary;
-        iconColor = theme.colorScheme.primary;
+        backgroundColor = theme.colorScheme.primary.withValues(alpha: 0.85);
+        textColor = Colors.white;
+        iconColor = Colors.white;
         icon = Iconsax.information;
         break;
     }
@@ -121,6 +121,8 @@ class _StatusMessageState extends State<StatusMessage> {
                   fontWeight: FontWeight.w500,
                   color: textColor,
                 ),
+                maxLines: 4,
+                overflow: TextOverflow.ellipsis,
               ),
             ),
             if (widget.onDismiss != null)

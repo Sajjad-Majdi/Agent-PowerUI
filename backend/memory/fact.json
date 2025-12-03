@@ -16,11 +16,6 @@
             "id": 1,
             "fact": "When given a task, create a complete plan and execute all steps without asking for confirmation after each tool call. Avoid unnecessary questions and complete the task from start to finish in one go.",
             "timestamp": "2025-11-28T01:06:43.796899"
-        },
-        {
-            "id": 2,
-            "fact": "When given a task, always think briefly before each tool call and immediately follow with a tool call. Never end a turn without a tool call until the task is 100% complete. Avoid conversational interjections during task execution.",
-            "timestamp": "2025-11-28T03:21:53.622827"
         }
     ],
     "File System Structure - E:\\": [
@@ -28,18 +23,6 @@
             "id": 1,
             "fact": "\n**Drive E:\\ Overview:**\n\n*   **MyMovies:** Contains movies and TV series, organized into '\u0633\u0631\u06cc\u0627\u0644' (series) and '\u0641\u06cc\u0644\u0645 \u0633\u06cc\u0646\u0645\u0627\u06cc\u06cc' (movies).\n    *   **\u0633\u0631\u06cc\u0627\u0644:**\n        *   `kingdom` (S1, S2)\n        *   `Moon knight` (S01E01-S01E06 with .mp4 and .srt files)\n        *   `Panthion` (S1, S2)\n        *   `Stranger things` (\u0641\u0635\u0644 1-5)\n        *   `Warrior Nun` (S01E01-S01E10 .mkv files)\n    *   **\u0641\u06cc\u0644\u0645 \u0633\u06cc\u0646\u0645\u0627\u06cc\u06cc:**\n        *   `Blue Beetle 2023` (.mkv, .srt)\n        *   `How to Train Your Dragon 2025` (.mkv, .srt)\n        *   `Mufasa The Lion King 2024` (.mkv)\n        *   `The Old Guard` (.mkv)\n        *   `Unseen` (Ballerina 2025, Joker 2 2024, predators 2010 - all .mkv)\n        *   `\u062e\u0627\u0646\u0648\u0627\u062f\u06af\u06cc` (Ant Man, Avengers, Captain America, Damsel, Goodzilla, Hunger games, Old spiderman, The Dark Tower, Thor)\n\n*   **Courses:** Educational materials, mostly programming and AI related.\n    *   `Andrew ng - Deep learning - Full Specialization` (various Coursera deep learning courses)\n    *   `Andrew ng - Mashine learning - Part 3` (unsupervised, recommender, reinforcement learning)\n    *   `FastAI Practical Deep learning` (lessons 1-5 .mp4)\n    *   `handicrafts` (Flip Boom Doodle, Maya, Office, Unity, Unreal Engine, \u062f\u0627\u0633\u062a\u0627\u0646)\n    *   `Seen` (Coursera Generative AI, Coursera Machine Learning by Andrew Ng)\n    *   `Udemy - 2025 Master Langchain and Ollama` (16 modules on Langchain, Ollama, RAG, Agents)\n    *   `Udemy - Fine Tuning LLM with Hugging Face Transformers for NLP` (13 modules on Transformers, BERT, T5, ViT, LLM fine-tuning)\n    *   `Udemy - Machine Learning and Data Science with LangChain and LLMs` (introduction to sequence modeling, RNNs, NMT)\n    *   `Udemy - Practical AI 2023-10` (25 modules on Generative AI, ChatGPT, OpenAI, Embedding, LangChain, HuggingFace, DALL-E3, Stable Diffusion, Chainlit, Gradio)\n    *   `Udemy - Zero to Hero in Ollama Create Local LLM Applications` (8 modules on Ollama, Open WebUI, Python, LangChain, RAG, Tools/Agents)\n\n*   **HyperV:** Virtual machine files for Ubuntu.\n    *   `Ubuntu` (Snapshots, Virtual Hard Disks, Virtual Machines folders)\n\n*   **lmstudio:** Contains LM Studio application files.\n\n*   **MyPicturs:** Image files.\n    *   `Hadis` (800+ Hadis images)\n    *   `HD Pictures` (various high-definition wallpapers)\n    *   `Wallpaper` (Home wallpapers)\n    *   `\u0645\u0631\u06af` (subset of Hadis images)\n    *   Other individual image files.\n\n*   **Personal:** Personal documents and development files.\n    *   `flutter` (Flutter SDK files, `.git`, `bin`, `dev`, `docs`, `engine`, `examples`, `packages`, `third_party` folders)\n    *   `\u067e\u062f\u0631` (Camera folder with many dated .jpg and .mp4 files, and a `Raw` subfolder)\n    *   Other individual files like `caleri.pptx`, `github-recovery-codes.txt`, `Maddahi.mp3`, `network crash course.pptx`, `Wallets.rar`, `XAPIs.txt`.\n\n*   **Softwares:** Installation files and applications.\n    *   `Baidu.PC.Faster`, `comet_installer`, `cuda`, `CursorFreeVIP`, `DriverPack`, `GHelper`, `GitHubDesktopSetup`, `Internet.Download.Manager`, `KMS.Activator`, `LAN_ROG_Realtek`, `NVIDIA_app`, `OllamaSetup`, `python`, `torguard`, `ubuntu-desktop`, `VSCodeUserSetup`, `WirelessLan_ROG_MediaTek` executable/archive files.\n    *   `hiddify-next` (Hiddify VPN application files)\n    *   `Office 2024` (Activator.cmd, ProPlus2024Retail.img)\n    *   `VPN` (Hiddify-Windows-Portable, Online 403, Outline-Client, v2rayN, wireguard configs)\n\n*   **University:** University-related documents and course materials.\n    *   `abstract factory.pptx`\n    *   `CAD` (various .mp4 files)\n    *   `CAD_HW1.pdf`\n    *   `flutter, http, laravel` (PDFs on Introduction, HTTP, Backend, Setup, CollectionArray, SessionCookiePolicy, Test, Flutter Exams, and Flutter Course Slides)\n    *   `HW#4.pdf`\n    *   `Silberschatz (10ed).pdf`\n    *   `Stallings (9ed).pdf`\n",
             "timestamp": "2025-11-28T03:20:16.165737"
-        }
-    ],
-    "User Preferences": [
-        {
-            "id": 2,
-            "fact": "The user downloads movies from zarfilm.com. The user is interested in the latest sci-fi movies.",
-            "timestamp": "2025-11-30T01:12:48.388739"
-        },
-        {
-            "id": 2,
-            "fact": "Downtime preference is usually watching movies.",
-            "timestamp": "2025-12-01T02:43:20.691652"
         }
     ],
     "User Interests & Activities": [
@@ -52,6 +35,12 @@
             "id": 2,
             "fact": "Specific interests include Artificial Intelligence (AI), the future, and reading poetry in praise of Amir al-Mu'minin.",
             "timestamp": "2025-12-01T02:43:19.428298"
+        },
+        {
+            "id": 3,
+            "fact": "User is interested in advanced topics like Artificial Intelligence, which often touches upon fundamental science like quantum physics.",
+            "timestamp": "2025-12-03T04:09:20.183335"
         }
-    ]
+    ],
+    "User Interest Reinforcement": []
 }

@@ -21,8 +21,12 @@ class OnlineAgent:
         self.llm = init_chat_model(model=f"google_genai:{self.model}")
 
         self.system_prompt = Config.get_system_prompt()
-        self.checkpointer = AsyncCompatibleSqliteSaver(
-            sqlite3.connect(Config.db_path, check_same_thread=False))
+        # Use a fresh connection with WAL mode for better concurrency
+        db_conn = sqlite3.connect(
+            Config.db_path, check_same_thread=False, timeout=30.0)
+        db_conn.execute("PRAGMA journal_mode=WAL")
+        db_conn.execute("PRAGMA busy_timeout=30000")
+        self.checkpointer = AsyncCompatibleSqliteSaver(db_conn)
         self.agent = create_react_agent(
             self.llm, self.tools, checkpointer=self.checkpointer, prompt=self.system_prompt)
 
@@ -62,14 +66,26 @@ class OnlineAgent:
             threading.current_thread().cancel_event = cancel_event
 
         try:
+            step_count = 0
             for step in self.agent.stream({"messages": [
                     {"role": "user", "content": message}]}, config=session_config, stream_mode="values"):
+                step_count += 1
                 # Check cancellation BEFORE processing each step
                 if cancel_event is not None and cancel_event.is_set():
                     print("[OnlineAgent] Cancellation detected, stopping stream")
                     break
                 last_message = step["messages"][-1]
                 yield last_message
+
+            # If we only got 1 step (just the user message), something went wrong
+            if step_count <= 1:
+                print(
+                    f"[OnlineAgent] Warning: Only {step_count} step(s) received, expected more")
+        except Exception as e:
+            print(f"[OnlineAgent] Stream error: {e}")
+            import traceback
+            traceback.print_exc()
+            raise
         finally:
             if hasattr(threading.current_thread(), 'cancel_event'):
                 delattr(threading.current_thread(), 'cancel_event')

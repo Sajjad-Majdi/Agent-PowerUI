@@ -30,7 +30,10 @@ class LocalAgent:
         self.llm = None
         self.system_prompt = Config.get_system_prompt()
         # Keep a dedicated sqlite connection and close it on shutdown to avoid DB locks on Windows
-        self._db_conn = sqlite3.connect(db_path, check_same_thread=False)
+        self._db_conn = sqlite3.connect(
+            db_path, check_same_thread=False, timeout=30.0)
+        self._db_conn.execute("PRAGMA journal_mode=WAL")
+        self._db_conn.execute("PRAGMA busy_timeout=30000")
         self.checkpointer = AsyncCompatibleSqliteSaver(self._db_conn)
         self._port = 8080
 
@@ -272,14 +275,26 @@ class LocalAgent:
             threading.current_thread().cancel_event = cancel_event
 
         try:
+            step_count = 0
             for step in self.agent.stream({"messages": [
                     {"role": "user", "content": message}]}, config=session_config, stream_mode="values"):
+                step_count += 1
                 # Check cancellation BEFORE processing each step
                 if cancel_event is not None and cancel_event.is_set():
                     print("[LocalAgent] Cancellation detected, stopping stream")
                     break
                 last_message = step["messages"][-1]
                 yield last_message
+
+            # If we only got 1 step (just the user message), something went wrong
+            if step_count <= 1:
+                print(
+                    f"[LocalAgent] Warning: Only {step_count} step(s) received, expected more")
+        except Exception as e:
+            print(f"[LocalAgent] Stream error: {e}")
+            import traceback
+            traceback.print_exc()
+            raise
         finally:
             if hasattr(threading.current_thread(), 'cancel_event'):
                 delattr(threading.current_thread(), 'cancel_event')

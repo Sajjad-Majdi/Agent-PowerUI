@@ -415,10 +415,6 @@ class _ChatInterfaceState extends State<ChatInterface> {
                                 key: ValueKey(_statusMessage),
                                 message: _statusMessage!,
                                 type: _statusType,
-                                autoDismissDuration:
-                                    _statusType == StatusType.error
-                                        ? null
-                                        : const Duration(seconds: 4),
                                 onDismiss: () =>
                                     setState(() => _statusMessage = null),
                               ),
