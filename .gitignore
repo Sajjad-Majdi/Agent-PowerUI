@@ -17,6 +17,10 @@ migrate_working_dir/
 *.ipr
 *.iws
 .idea/
+.pytest_cache/
+.trae/
+resources/llamacpp/*
+resources/models/*
 
 .gitignore
 resources
