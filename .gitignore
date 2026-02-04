@@ -16,6 +16,12 @@ migrate_working_dir/
 .vscode/
 .metadata
 Thumbs.db
+backend/memory/*
+backend/data/*
+logs/
+
+
+
 
 # IntelliJ related
 *.iml
@@ -24,6 +30,7 @@ Thumbs.db
 .idea/
 .pytest_cache/
 .trae/
+.cursor/
 resources/llamacpp/*
 resources/models/*
 
@@ -69,6 +76,23 @@ env/
 
 # Backend runtime artifacts
 backend/data/*.db
+backend/data/*.db-wal
+backend/data/*.db-shm
 backend/logs/
 backend/memory/*.json
 backend/__pycache__/
+
+# Large build/binary artifacts (avoid oversized pushes)
+*.pdb
+*.ilk
+*.obj
+*.lib
+*.dll
+*.exe
+*.bin
+*.dill
+/build/
+/.dart_tool/
+/windows/**/Debug/
+/windows/**/Release/
+/windows/flutter/ephemeral/
