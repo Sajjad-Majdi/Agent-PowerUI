@@ -11,6 +11,11 @@
 .svn/
 .swiftpm/
 migrate_working_dir/
+.cursor/
+.vs/
+.vscode/
+.metadata
+Thumbs.db
 
 # IntelliJ related
 *.iml
@@ -38,6 +43,10 @@ resources
 .pub-cache/
 .pub/
 /build/
+**/windows/flutter/ephemeral/
+**/linux/flutter/ephemeral/
+**/macos/Flutter/ephemeral/
+**/ios/Flutter/ephemeral/
 
 # Symbolication related
 app.*.symbols
@@ -49,3 +58,17 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Python virtual environments & env files
+.env
+.env.*
+.venv/
+venv/
+ENV/
+env/
+
+# Backend runtime artifacts
+backend/data/*.db
+backend/logs/
+backend/memory/*.json
+backend/__pycache__/
